@@ -3,6 +3,7 @@ import React from "react";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+import GoogleMap from "./GoogleMap"; // 追加
 
 function Home() {
   const navigate = useNavigate();
@@ -22,7 +23,9 @@ function Home() {
 
   return (
     <div>
-      <h1>ホーム画面</h1>
+      <h1>GochiSpace</h1>
+      
+      <GoogleMap /> {/* Google Mapを表示 */}
       <button onClick={logout}>ログアウト</button>
       <button onClick={myprofile}>マイプロフィール</button>
       <button onClick={reviewpost}>レビュー投稿</button>

@@ -1,0 +1,76 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===== USERS COLLECTION =====
+    match /users/{userId} {
+      // 読み取り: 認証済みユーザーなら誰でも可能（重複チェック用）
+      allow read: if request.auth != null;
+      
+      // 作成: 認証済みユーザーで、自分のUIDのドキュメントのみ
+      allow create: if request.auth != null 
+        && request.auth.uid == userId
+        && request.auth.uid == request.resource.data.firebaseUid;
+      
+      // 更新・削除: 自分のドキュメントのみ
+      allow update, delete: if request.auth != null 
+        && request.auth.uid == userId;
+    }
+    
+    // ===== REVIEWS COLLECTION =====
+    match /reviews/{reviewId} {
+      // 読み取り: 認証済みユーザーなら誰でも可能
+      allow read: if request.auth != null;
+      
+      // 作成: 認証済みユーザーで、自分のUIDがuserIdと一致する場合のみ
+      allow create: if request.auth != null 
+        && request.auth.uid == request.resource.data.userId;
+      
+      // 更新・削除: 自分が作成したレビューのみ
+      allow update, delete: if request.auth != null 
+        && request.auth.uid == resource.data.userId;
+    }
+    
+    // ===== 他のコレクション（将来の拡張用） =====
+    match /{document=**} {
+      // デフォルトで認証済みユーザーに読み取り許可
+      allow read: if request.auth != null;
+      
+      // 書き込みは明示的に許可されたコレクションのみ
+      allow write: if false;
+    }
+  }
+}
+
+// ===== STORAGE RULES =====
+// firebase.storage.rules ファイル用
+
+/*
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // ユーザープロフィール画像
+    match /profiles/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024 // 5MB制限
+        && request.resource.contentType.matches('image/.*');
+    }
+    
+    // レビュー画像
+    match /reviews/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024 // 10MB制限
+        && request.resource.contentType.matches('image/.*');
+    }
+    
+    // その他のファイルはアクセス禁止
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+*/

@@ -101,6 +101,7 @@ function Auth() {
       // Firestoreにユーザー情報保存
       const userData = {
         userId: userId,
+        displayName: userId, // displayNameとしてuserIdを使用
         firebaseUid: user.uid,
         email: email,
         emailVerified: false,

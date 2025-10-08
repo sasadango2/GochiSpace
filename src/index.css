@@ -1,13 +1,76 @@
+/* モバイル最適化 CSS変数 */
+:root {
+  --vh: 1vh;
+  --mobile-safe-area-top: env(safe-area-inset-top);
+  --mobile-safe-area-bottom: env(safe-area-inset-bottom);
+  --mobile-safe-area-left: env(safe-area-inset-left);
+  --mobile-safe-area-right: env(safe-area-inset-right);
+}
+
 body {
   margin: 0;
+  padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
+  /* モバイル最適化 */
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  
+  /* スクロール最適化 */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  
+  /* フルスクリーン高さ調整（モバイルブラウザのアドレスバー対応） */
+  min-height: 100vh;
+  min-height: calc(var(--vh, 1vh) * 100);
+  
+  /* セーフエリア対応 */
+  padding-top: var(--mobile-safe-area-top);
+  padding-bottom: var(--mobile-safe-area-bottom);
+  padding-left: var(--mobile-safe-area-left);
+  padding-right: var(--mobile-safe-area-right);
+}
+
+/* テキスト選択可能な要素 */
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: calc(var(--vh, 1vh) * 100);
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* PWA用スプラッシュスクリーン対応 */
+@media (display-mode: standalone) {
+  body {
+    background-color: #FF5722;
+  }
+}
+
+/* モバイル向けアニメーション最適化 */
+* {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* タッチイベント最適化 */
+button, .clickable {
+  touch-action: manipulation;
 }

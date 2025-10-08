@@ -3,6 +3,7 @@ import { Loader } from '@googlemaps/js-api-loader';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
+import { performMapSearch, detectSearchType, getRestaurantReviews } from '../utils/mapSearchUtils';
 import {
   Box,
   TextField,
@@ -15,8 +16,19 @@ import {
   Switch,
   FormControlLabel,
   Typography,
-  Paper
+  Paper,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Avatar,
+  Rating,
+  Divider
 } from '@mui/material';
+import { Search, Clear, Restaurant, Person } from '@mui/icons-material';
 
 function GoogleMap() {
   const mapRef = useRef(null);
@@ -30,6 +42,18 @@ function GoogleMap() {
   const [searchFilter, setSearchFilter] = useState('');
   const [showMyReviews, setShowMyReviews] = useState(false);
   const [selectedMarker, setSelectedMarker] = useState(null);
+  
+  // 新しい検索機能の状態
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchType, setSearchType] = useState('none');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchMode, setSearchMode] = useState(false); // true: 検索モード, false: レビューモード
+  
+  // レビュー詳細表示の状態
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [selectedRestaurantReviews, setSelectedRestaurantReviews] = useState([]);
+  const [selectedRestaurantName, setSelectedRestaurantName] = useState('');
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   const categories = [
     "和食", "洋食", "中華", "イタリアン", "フレンチ", "焼肉", "寿司", 
@@ -39,31 +63,128 @@ function GoogleMap() {
   // レビューデータを取得
   const fetchReviews = useCallback(async () => {
     try {
-      let reviewQuery = query(
-        collection(db, 'reviews'),
-        orderBy('createdAt', 'desc')
-      );
+      let reviewsData = [];
 
-      // ユーザーフィルター
       if (showMyReviews && user) {
-        reviewQuery = query(
+        // ユーザーフィルター時は、where句のみでorderByを避ける
+        const reviewQuery = query(
           collection(db, 'reviews'),
-          where('userId', '==', user.uid),
+          where('userId', '==', user.uid)
+        );
+        const querySnapshot = await getDocs(reviewQuery);
+        reviewsData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // クライアントサイドでソート
+        reviewsData.sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(0);
+          const dateB = b.createdAt?.toDate?.() || new Date(0);
+          return dateB - dateA;
+        });
+      } else {
+        // 全レビュー取得時はorderByのみ
+        const reviewQuery = query(
+          collection(db, 'reviews'),
           orderBy('createdAt', 'desc')
         );
+        const querySnapshot = await getDocs(reviewQuery);
+        reviewsData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
       }
-
-      const querySnapshot = await getDocs(reviewQuery);
-      const reviewsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
 
       setReviews(reviewsData);
     } catch (error) {
       console.error('レビュー取得エラー:', error);
+      // エラーが発生した場合は空配列をセット
+      setReviews([]);
     }
   }, [showMyReviews, user]);
+
+  // 新しい検索機能
+  const handleMapSearch = useCallback(async (searchText) => {
+    if (!searchText.trim()) {
+      setSearchResults([]);
+      setSearchType('none');
+      setSearchMode(false);
+      return;
+    }
+
+    if (!user) {
+      console.log('検索にはログインが必要です');
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchMode(true);
+    
+    try {
+      const type = detectSearchType(searchText);
+      setSearchType(type);
+      
+      const results = await performMapSearch(searchText, user.uid, {
+        category: categoryFilter,
+        limit: 100
+      });
+      
+      setSearchResults(results);
+      console.log(`検索完了: ${results.length}件の結果`);
+    } catch (error) {
+      console.error('マップ検索エラー:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [categoryFilter, user]);
+
+  // 検索フィルターの変更を監視
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      handleMapSearch(searchFilter);
+    }, 500); // 500ms のデバウンス
+
+    return () => clearTimeout(timeoutId);
+  }, [searchFilter, handleMapSearch]);
+
+  // 検索クリア
+  const handleClearSearch = () => {
+    setSearchFilter('');
+    setSearchResults([]);
+    setSearchType('none');
+    setSearchMode(false);
+  };
+
+  // マーカークリック時の詳細レビュー表示
+  const handleMarkerClick = async (restaurantLocation, restaurantName) => {
+    if (!user) {
+      console.log('ログインが必要です');
+      return;
+    }
+
+    setLoadingReviews(true);
+    setSelectedRestaurantName(restaurantName);
+    setReviewDialogOpen(true);
+
+    try {
+      const detailedReviews = await getRestaurantReviews(restaurantLocation, user.uid);
+      setSelectedRestaurantReviews(detailedReviews);
+    } catch (error) {
+      console.error('詳細レビュー取得エラー:', error);
+      setSelectedRestaurantReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  // レビューダイアログを閉じる
+  const handleCloseReviewDialog = () => {
+    setReviewDialogOpen(false);
+    setSelectedRestaurantReviews([]);
+    setSelectedRestaurantName('');
+  };
 
   // マップの初期化
   useEffect(() => {
@@ -74,18 +195,24 @@ function GoogleMap() {
     });
 
     loader.load().then(() => {
-      const mapInstance = new window.google.maps.Map(mapRef.current, {
-        center: { lat: 35.6762, lng: 139.6503 }, // 東京駅
-        zoom: 12,
-        styles: [
-          {
-            featureType: 'poi',
-            elementType: 'labels',
-            stylers: [{ visibility: 'off' }]
-          }
-        ]
+      //geolocationで現在地を取得
+      navigator.geolocation.getCurrentPosition(position => {
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+
+        const mapInstance = new window.google.maps.Map(mapRef.current, {
+          center: { lat: userLat, lng: userLng },
+          zoom: 10,
+          styles: [
+            {
+              featureType: 'poi',
+              elementType: 'labels',
+              stylers: [{ visibility: 'off' }]
+            }
+          ]
+        });
+        setMap(mapInstance);
       });
-      setMap(mapInstance);
     }).catch(error => {
       console.error('Google Maps API読み込みエラー:', error);
     });
@@ -119,35 +246,99 @@ function GoogleMap() {
     });
   }, [reviews, categoryFilter, searchFilter]);
 
-  // マーカーを更新（同じ店舗の複数レビューをグループ化）
+  // マーカーを更新（検索結果または通常のレビューを表示）
   useEffect(() => {
     if (!map) return;
 
     // 既存のマーカーを削除
     markers.forEach(marker => marker.setMap(null));
-
-    const filteredReviews = getFilteredReviews();
     const newMarkers = [];
 
-    // 店舗ごとにレビューをグループ化
-    const restaurantGroups = {};
-    filteredReviews.forEach(review => {
-      if (review.restaurantLocation) {
-        const key = `${review.restaurantLocation.lat}_${review.restaurantLocation.lng}`;
-        if (!restaurantGroups[key]) {
-          restaurantGroups[key] = {
-            restaurantName: review.restaurantName,
-            location: review.restaurantLocation,
-            reviews: []
-          };
-        }
-        restaurantGroups[key].reviews.push(review);
-      }
-    });
+    if (searchMode && searchResults.length > 0) {
+      // 検索モード: 検索結果をマーカー表示
+      searchResults.forEach((result, index) => {
+        if (result.location) {
+          const marker = new window.google.maps.Marker({
+            position: result.location,
+            map: map,
+            title: result.name,
+            icon: {
+              url: searchType === 'user' 
+                ? 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#FF5722">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                  </svg>
+                `)
+                : 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#FF5722">
+                    <path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/>
+                  </svg>
+                `),
+              scaledSize: new window.google.maps.Size(32, 32)
+            }
+          });
 
-    // グループごとにマーカーを作成
-    Object.values(restaurantGroups).forEach(group => {
-      const primaryReview = group.reviews[0]; // 代表レビュー
+          // 情報ウィンドウを作成
+          const infoContent = searchType === 'user' 
+            ? `
+              <div style="padding: 8px; max-width: 300px;">
+                <h3 style="margin: 0 0 8px 0; color: #FF5722;">${result.name}</h3>
+                <p style="margin: 4px 0; color: #666;">カテゴリ: ${result.category}</p>
+                <p style="margin: 4px 0; color: #666;">レビュー数: ${result.reviewCount}件</p>
+                <p style="margin: 4px 0; color: #666;">レビューユーザー: ${result.reviewUsers.join(', ')}</p>
+                ${result.address ? `<p style="margin: 4px 0; color: #666;">住所: ${result.address}</p>` : ''}
+              </div>
+            `
+            : `
+              <div style="padding: 8px; max-width: 300px;">
+                <h3 style="margin: 0 0 8px 0; color: #FF5722;">${result.name}</h3>
+                <p style="margin: 4px 0; color: #666;">カテゴリ: ${result.category}</p>
+                ${result.address ? `<p style="margin: 4px 0; color: #666;">住所: ${result.address}</p>` : ''}
+                ${result.description ? `<p style="margin: 4px 0; color: #666;">${result.description}</p>` : ''}
+              </div>
+            `;
+
+          const infoWindow = new window.google.maps.InfoWindow({
+            content: infoContent
+          });
+
+          marker.addListener('click', () => {
+            if (selectedMarker) {
+              selectedMarker.infoWindow.close();
+            }
+            infoWindow.open(map, marker);
+            setSelectedMarker({ marker, infoWindow });
+            
+            // 詳細レビューを表示
+            handleMarkerClick(result.location, result.name);
+          });
+
+          newMarkers.push(marker);
+        }
+      });
+    } else {
+      // 通常モード: レビューをマーカー表示
+      const filteredReviews = getFilteredReviews();
+      
+      // 店舗ごとにレビューをグループ化
+      const restaurantGroups = {};
+      filteredReviews.forEach(review => {
+        if (review.restaurantLocation) {
+          const key = `${review.restaurantLocation.lat}_${review.restaurantLocation.lng}`;
+          if (!restaurantGroups[key]) {
+            restaurantGroups[key] = {
+              restaurantName: review.restaurantName,
+              location: review.restaurantLocation,
+              reviews: []
+            };
+          }
+          restaurantGroups[key].reviews.push(review);
+        }
+      });
+
+      // グループごとにマーカーを作成
+      Object.values(restaurantGroups).forEach(group => {
+        const primaryReview = group.reviews[0]; // 代表レビュー
       const reviewCount = group.reviews.length;
       
       const marker = new window.google.maps.Marker({
@@ -170,18 +361,23 @@ function GoogleMap() {
 
       marker.addListener('click', () => {
         if (selectedMarker) {
-          selectedMarker.close();
+          selectedMarker.infoWindow?.close();
         }
         infoWindow.open(map, marker);
-        setSelectedMarker(infoWindow);
+        setSelectedMarker({ marker, infoWindow });
+        
+        // 詳細レビューを表示
+        handleMarkerClick(group.location, group.restaurantName);
       });
 
-      newMarkers.push(marker);
-    });
+        newMarkers.push(marker);
+      });
+    }
 
     setMarkers(newMarkers);
+    // markersは状態更新の結果なので依存配列に含めない（無限ループ防止）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, getFilteredReviews]);
+  }, [map, searchMode, searchResults, searchType, selectedMarker, getFilteredReviews]);
 
   // カテゴリーに応じたアイコンを取得（レビュー数バッジ付き）
   const getCategoryIcon = (category, reviewCount = 1) => {
@@ -290,13 +486,54 @@ function GoogleMap() {
             </FormControl>
 
             {/* 検索フィルター */}
-            <TextField
-              label="店名またはユーザー名で検索"
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              size="small"
-              sx={{ flexGrow: 1 }}
-            />
+            <Box sx={{ position: 'relative', flexGrow: 1 }}>
+              <TextField
+                label="店名またはユーザー名で検索 (ユーザー検索は@から始める)"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                size="small"
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <Tooltip title={
+                      searchType === 'user' ? 'ユーザー検索中' : 
+                      searchType === 'restaurant' ? '飲食店検索中' : 
+                      '検索タイプ'
+                    }>
+                      <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
+                        {searchType === 'user' ? <Person color="primary" /> : 
+                         searchType === 'restaurant' ? <Restaurant color="secondary" /> : 
+                         <Search color="disabled" />}
+                      </Box>
+                    </Tooltip>
+                  ),
+                  endAdornment: searchFilter && (
+                    <Tooltip title="検索をクリア">
+                      <IconButton
+                        size="small"
+                        onClick={handleClearSearch}
+                        sx={{ mr: -1 }}
+                      >
+                        <Clear />
+                      </IconButton>
+                    </Tooltip>
+                  )
+                }}
+              />
+              
+              {/* 検索状態の表示 */}
+              {isSearching && (
+                <Typography variant="caption" sx={{ color: 'primary.main', mt: 0.5, display: 'block' }}>
+                  検索中...
+                </Typography>
+              )}
+              
+              {searchMode && !isSearching && (
+                <Typography variant="caption" sx={{ color: 'success.main', mt: 0.5, display: 'block' }}>
+                  {searchType === 'user' ? 'ユーザーレビュー' : '飲食店'}: {searchResults.length}件見つかりました
+                </Typography>
+              )}
+            </Box>
           </Stack>
 
           <Box>
@@ -314,8 +551,17 @@ function GoogleMap() {
             
             {/* アクティブフィルターの表示 */}
             <Box sx={{ mt: 1 }}>
-              {(categoryFilter || searchFilter || showMyReviews) && (
+              {(categoryFilter || searchFilter || showMyReviews || searchMode) && (
                 <Stack direction="row" spacing={1} flexWrap="wrap">
+                  {searchMode && (
+                    <Chip
+                      label={`${searchType === 'user' ? 'ユーザー検索' : '飲食店検索'}: ${searchResults.length}件`}
+                      onDelete={handleClearSearch}
+                      size="small"
+                      color="secondary"
+                      icon={searchType === 'user' ? <Person /> : <Restaurant />}
+                    />
+                  )}
                   {categoryFilter && (
                     <Chip
                       label={`カテゴリー: ${categoryFilter}`}
@@ -324,7 +570,7 @@ function GoogleMap() {
                       color="primary"
                     />
                   )}
-                  {searchFilter && (
+                  {searchFilter && !searchMode && (
                     <Chip
                       label={`検索: ${searchFilter}`}
                       onDelete={() => setSearchFilter('')}
@@ -365,6 +611,100 @@ function GoogleMap() {
           表示中のレビュー数: {getFilteredReviews().length}件 / 全{reviews.length}件
         </Typography>
       </Paper>
+
+      {/* レビュー詳細ダイアログ */}
+      <Dialog
+        open={reviewDialogOpen}
+        onClose={handleCloseReviewDialog}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: { maxHeight: '80vh' }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Restaurant color="primary" />
+            <Typography variant="h6" component="span">
+              {selectedRestaurantName}
+            </Typography>
+            <Chip 
+              label={`${selectedRestaurantReviews.length}件のレビュー`} 
+              size="small" 
+              color="primary" 
+            />
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent dividers>
+          {loadingReviews ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+              <Typography>レビューを読み込み中...</Typography>
+            </Box>
+          ) : selectedRestaurantReviews.length === 0 ? (
+            <Box sx={{ textAlign: 'center', p: 3 }}>
+              <Typography color="text.secondary">
+                相互フォローユーザーのレビューがありません
+              </Typography>
+            </Box>
+          ) : (
+            <Stack spacing={2}>
+              {selectedRestaurantReviews.map((review, index) => (
+                <Paper key={review.id} elevation={1} sx={{ p: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                    <Avatar sx={{ bgcolor: 'primary.main' }}>
+                      {(review.userDisplayName || review.userEmail || 'U').charAt(0).toUpperCase()}
+                    </Avatar>
+                    
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="subtitle1" fontWeight="bold">
+                          {review.userDisplayName || review.userEmail || 'ユーザー'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {review.createdAt?.toDate?.()?.toLocaleDateString() || '日付不明'}
+                        </Typography>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Rating value={review.rating || 0} precision={1} readOnly size="small" />
+                        <Typography variant="body2" color="text.secondary">
+                          ({review.rating || 0}/5)
+                        </Typography>
+                        {review.category && (
+                          <Chip label={review.category} size="small" variant="outlined" />
+                        )}
+                      </Box>
+                      
+                      {review.comment && (
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          {review.comment}
+                        </Typography>
+                      )}
+                      
+                      {review.restaurantAddress && (
+                        <Typography variant="caption" color="text.secondary">
+                          📍 {review.restaurantAddress}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                  
+                  {index < selectedRestaurantReviews.length - 1 && (
+                    <Divider sx={{ mt: 2 }} />
+                  )}
+                </Paper>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        
+        <DialogActions>
+          <Button onClick={handleCloseReviewDialog} variant="contained">
+            閉じる
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

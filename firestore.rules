@@ -16,9 +16,54 @@ service cloud.firestore {
       // 更新・削除: 自分のドキュメントのみ
       allow update, delete: if request.auth != null 
         && request.auth.uid == userId;
+
+      // ===== USER SUBCOLLECTIONS =====
+      
+      // フォロー情報サブコレクション
+      match /follows/{followId} {
+        // 読み取り: 自分のフォロー情報のみ、または相手のフォロー情報（相互フォロー確認用）
+        allow read: if request.auth != null && 
+          (request.auth.uid == userId || request.auth.uid == resource.data.targetUserId);
+        
+        // 作成・更新・削除: 自分のフォロー情報のみ
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // 通知サブコレクション
+      match /notifications/{notificationId} {
+        // 読み取り・削除: 自分の通知のみ
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        
+        // 作成: 認証済みユーザーなら誰でも（他ユーザーへの通知送信用）
+        allow create: if request.auth != null;
+        
+        // 更新: 自分の通知のみ
+        allow update: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // レビュー投稿情報サブコレクション
+      match /postRestaurantInfo/{placeId} {
+        // 読み取り: 認証済みユーザーなら誰でも可能
+        allow read: if request.auth != null;
+        
+        // 作成・更新・削除: 自分のレビューのみ
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
-    // ===== REVIEWS COLLECTION =====
+    // ===== RESTAURANTS COLLECTION =====
+    match /restaurants/{placeId} {
+      // 読み取り: 認証済みユーザーなら誰でも可能
+      allow read: if request.auth != null;
+      
+      // 作成・更新: 認証済みユーザーなら誰でも可能（レビュー投稿時）
+      allow create, update: if request.auth != null;
+      
+      // 削除: 禁止
+      allow delete: if false;
+    }
+    
+    // ===== REVIEWS COLLECTION (旧版互換性用) =====
     match /reviews/{reviewId} {
       // 読み取り: 認証済みユーザーなら誰でも可能
       allow read: if request.auth != null;

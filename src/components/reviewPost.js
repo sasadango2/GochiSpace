@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, addDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth, db, storage } from "../firebase";
+import { auth } from "../firebase";
+import { saveReviewData } from "../utils/dataSync";
 import {
   Container,
   Box,
@@ -39,7 +38,6 @@ import {
   Search,
   Send,
   Restaurant,
-  PhotoCamera,
   LocationOn
 } from "@mui/icons-material";
 
@@ -53,8 +51,7 @@ function ReviewPost() {
   const [comment, setComment] = useState("");
   const [rating, setRating] = useState(0);
   const [category, setCategory] = useState("");
-  const [image, setImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+
   
   // Google Places API関連
   const [searchResults, setSearchResults] = useState([]);
@@ -269,19 +266,6 @@ function ReviewPost() {
     }
   };
 
-  // 画像選択
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   // 投稿処理
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -323,17 +307,6 @@ function ReviewPost() {
     try {
       console.log("📝 レビュー投稿開始...");
       
-      let imageUrl = null;
-      
-      // 画像のアップロード
-      if (image) {
-        console.log("📸 画像アップロード中...");
-        const imageRef = ref(storage, `reviews/${user.uid}/${Date.now()}_${image.name}`);
-        const snapshot = await uploadBytes(imageRef, image);
-        imageUrl = await getDownloadURL(snapshot.ref);
-        console.log("✅ 画像アップロード完了:", imageUrl);
-      }
-
       // 座標データの安全な取得
       let restaurantLat = 0;
       let restaurantLng = 0;
@@ -382,26 +355,24 @@ function ReviewPost() {
 
       console.log("📍 最終座標データ:", { lat: restaurantLat, lng: restaurantLng });
 
-      // レビューデータをFirestoreに保存（セキュリティルール完全対応）
+      // レビューデータをFirestoreに保存（統合同期システム使用）
       const reviewData = {
         category: category,
         comment: comment.trim(),
-        createdAt: "", // 空文字列として保存
-        imageUrl: imageUrl || "", // nullの場合は空文字列
         rating: rating,
-        restaurantAddress: selectedRestaurant.formatted_address || "", // レストランの住所を追加
+        restaurantAddress: selectedRestaurant.formatted_address || "",
         restaurantLocation: {
-          lat: Number(restaurantLat), // 明示的に数値変換
-          lng: Number(restaurantLng)  // 明示的に数値変換
+          lat: Number(restaurantLat),
+          lng: Number(restaurantLng)
         },
         restaurantName: selectedRestaurant.name,
         
         // セキュリティルール必須フィールド
-        userId: user.uid, // Firebase Auth UID
-        userEmail: user.email, // ユーザーメール（必須）
-        restaurantId: selectedRestaurant.place_id, // レストランID（必須）
-        isPublic: true, // 公開フラグ（必須）
-        isDeleted: false, // 削除フラグ（必須）
+        userId: user.uid,
+        userEmail: user.email,
+        restaurantId: selectedRestaurant.place_id,
+        isPublic: true,
+        isDeleted: false,
         
         // 追加情報
         userDisplayName: user.displayName || user.email.split('@')[0] || "user"
@@ -416,19 +387,23 @@ function ReviewPost() {
         lngValue: reviewData.restaurantLocation.lng
       });
 
-      await addDoc(collection(db, "reviews"), reviewData);
-      console.log("✅ レビュー投稿完了");
+      // 統合保存システムを使用（二重保存を排除）
+      const result = await saveReviewData(user.uid, selectedRestaurant, reviewData);
       
-      // 成功時の処理
-      alert("レビューが投稿されました！");
-      navigate("/home");
+      if (result.success) {
+        console.log("✅ 統合レビュー保存完了");
+        alert("レストラン情報が投稿されました！");
+        navigate("/home");
+      } else {
+        throw new Error(result.message || "保存に失敗しました");
+      }
       
     } catch (err) {
       console.error("❌ 投稿エラー:", err);
       
       // エラーの種類に応じた詳細メッセージ
       if (err.code === 'permission-denied') {
-        setError("レビューの投稿権限がありません。");
+        setError("レストラン情報の投稿権限がありません。");
       } else if (err.code === 'storage/unauthorized') {
         setError("画像のアップロード権限がありません。");
       } else if (err.code === 'storage/quota-exceeded') {
@@ -617,42 +592,6 @@ function ReviewPost() {
                     </Box>
                   </Box>
 
-                  {/* 画像選択 */}
-                  <Box>
-                    <Typography variant="h6" gutterBottom color="primary" fontWeight="bold">
-                      画像選択
-                    </Typography>
-                    <Box display="flex" alignItems="center" gap={2}>
-                      <Button
-                        variant="outlined"
-                        component="label"
-                        startIcon={<PhotoCamera />}
-                        sx={{ borderRadius: 2 }}
-                      >
-                        画像を選択
-                        <input
-                          type="file"
-                          accept="image/*"
-                          hidden
-                          onChange={handleImageChange}
-                        />
-                      </Button>
-                      {imagePreview && (
-                        <Box
-                          component="img"
-                          src={imagePreview}
-                          alt="Preview"
-                          sx={{
-                            width: 100,
-                            height: 100,
-                            objectFit: 'cover',
-                            borderRadius: 2,
-                            border: '2px solid #ddd'
-                          }}
-                        />
-                      )}
-                    </Box>
-                  </Box>
 
                   {/* 投稿ボタン */}
                   <Button
@@ -675,7 +614,7 @@ function ReviewPost() {
                       }
                     }}
                   >
-                    {submitting ? "投稿中..." : "レビューを投稿"}
+                    {submitting ? "投稿中..." : "レストラン情報を投稿"}
                   </Button>
                 </Stack>
               </form>

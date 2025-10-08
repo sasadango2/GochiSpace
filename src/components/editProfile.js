@@ -2,8 +2,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db, storage } from "../firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { 
+  updateUserProfile
+} from "../utils/dataSync";
 import {
   Container,
   Box,
@@ -21,14 +24,18 @@ import {
   Grid,
   IconButton,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from "@mui/material";
 import {
   ArrowBack,
   Person,
   PhotoCamera,
-  Restaurant,
-  Save
+  Save,
+  Preview
 } from "@mui/icons-material";
 
 const CATEGORIES = [
@@ -39,12 +46,15 @@ const CATEGORIES = [
 function EditProfile() {
   const [user, loading] = useAuthState(auth);
   const [username, setUsername] = useState("");
+  const [originalDisplayName, setOriginalDisplayName] = useState("");
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [icon, setIcon] = useState(null);
   const [iconFile, setIconFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [profileError, setProfileError] = useState("");
+  const [previewDialog, setPreviewDialog] = useState(false);
+  const [updateImpact, setUpdateImpact] = useState(null);
   const navigate = useNavigate();
 
   const loadUserProfile = useCallback(async () => {
@@ -56,7 +66,9 @@ function EditProfile() {
       
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        setUsername(userData.displayName || userData.userId || "");
+        const displayName = userData.displayName || userData.userId || "";
+        setUsername(displayName);
+        setOriginalDisplayName(displayName);
         setSelectedCategories(userData.preferences || []);
         setIcon(userData.profileImage || null);
       }
@@ -78,6 +90,26 @@ function EditProfile() {
       setSelectedCategories(selectedCategories.filter((c) => c !== category));
     } else if (selectedCategories.length < 3) {
       setSelectedCategories([...selectedCategories, category]);
+    }
+  };
+
+  // displayName変更の影響をプレビュー
+  const handlePreviewImpact = async () => {
+    if (!user || username.trim() === originalDisplayName) {
+      setProfileError("displayNameに変更がありません");
+      return;
+    }
+
+    try {
+      // Cloud Functions による自動同期なので詳細な事前チェックは不要
+      setUpdateImpact({ 
+        reviewsToUpdate: "自動計算", 
+        restaurantsToUpdate: "自動更新",
+        message: "Cloud Functions により関連データが自動同期されます"
+      });
+      setPreviewDialog(true);
+    } catch (error) {
+      setProfileError("プロフィール更新の準備中にエラーが発生しました");
     }
   };
 
@@ -117,7 +149,7 @@ function EditProfile() {
     }
     
     if (!username.trim()) {
-      setProfileError("ユーザーネームを入力してください。");
+      setProfileError("displayNameを入力してください。");
       return;
     }
 
@@ -126,73 +158,100 @@ function EditProfile() {
     setMessage("");
 
     try {
+      // displayNameが変更された場合はCloud Functions による自動同期を使用
+      if (username.trim() !== originalDisplayName) {
+        console.log("displayName変更検出 - Cloud Functions による自動同期を開始");
+        await updateUserProfile(user.uid, { displayName: username.trim() });
+        console.log("displayName更新完了 - 関連レビューは自動同期されます");
+      }
+
       // プロフィール画像をアップロード（ある場合）
       let profileImageUrl = icon;
       if (iconFile) {
         profileImageUrl = await uploadProfileImage();
       }
 
-      // Firestoreにユーザー情報を保存
+      // Firestoreにユーザー情報を保存（userIdは変更しない）
       const userDocRef = doc(db, "users", user.uid);
       const userData = {
-        userId: username.trim(),
-        firebaseUid: user.uid,
+        // userIdは変更しない - 既存の値を保持
+        displayName: username.trim(), // displayNameのみ更新
         email: user.email,
         emailVerified: user.emailVerified,
-        displayName: username.trim(),
         profileImage: profileImageUrl || "",
         preferences: selectedCategories,
         updatedAt: new Date()
       };
 
-      // 新規作成の場合はcreatedAtも追加
+      // 新規作成の場合はcreatedAtとuserIdも追加
       const existingDoc = await getDoc(userDocRef);
       if (!existingDoc.exists()) {
         userData.createdAt = new Date();
+        userData.userId = user.uid; // 新規作成時のみuserIdを設定
+        userData.firebaseUid = user.uid;
         userData.reviewCount = 0;
         userData.totalRating = 0;
         userData.favoriteCategories = [];
+      } else {
+        // 既存ユーザーの場合、userIdは既存値を保持
+        const existingData = existingDoc.data();
+        userData.userId = existingData.userId || user.uid;
+        userData.firebaseUid = existingData.firebaseUid || user.uid;
       }
 
-      await setDoc(userDocRef, userData, { merge: true });
+      // Cloud Functions 対応のプロフィール更新処理
+      const profileData = {
+        displayName: username.trim(),
+        email: user.email,
+        emailVerified: user.emailVerified,
+        profileImage: profileImageUrl || "",
+        preferences: selectedCategories
+      };
+
+      // updateUserProfile を使用して自動同期
+      const result = await updateUserProfile(user.uid, profileData);
       
-      setMessage("プロフィールが保存されました！");
-      setTimeout(() => {
-        navigate("/home");
-      }, 2000);
-      
+      if (result.success) {
+        if (username.trim() !== originalDisplayName) {
+          setMessage(`プロフィールが保存されました！displayNameを「${username.trim()}」に更新し、関連データもCloud Functionsで自動同期されます。`);
+        } else {
+          setMessage("プロフィールが保存されました！");
+        }
+        setOriginalDisplayName(username.trim());
+        
+        setTimeout(() => {
+          navigate("/home");
+        }, 2000);
+      } else {
+        throw new Error(result.message || "更新に失敗しました");
+      }
+
     } catch (error) {
-      console.error("保存エラー:", error);
-      setProfileError("保存に失敗しました: " + error.message);
+      console.error("プロフィール保存エラー:", error);
+      setProfileError(`保存に失敗しました: ${error.message}`);
     } finally {
       setSaving(false);
     }
   };
 
-  // ログイン状態をチェック
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh' 
+        }}
+      >
         <CircularProgress />
       </Box>
     );
   }
 
   if (!user) {
-    return (
-      <Box sx={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Card>
-          <CardContent sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="h6" color="error" gutterBottom>
-              ログインが必要です
-            </Typography>
-            <Button variant="contained" onClick={() => navigate("/auth")}>
-              ログイン画面へ
-            </Button>
-          </CardContent>
-        </Card>
-      </Box>
-    );
+    navigate("/");
+    return null;
   }
 
   return (
@@ -200,137 +259,129 @@ function EditProfile() {
       {/* ヘッダー */}
       <AppBar position="static" sx={{ background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)' }}>
         <Toolbar>
-          <IconButton color="inherit" onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+          <IconButton color="inherit" onClick={() => navigate("/home")}>
             <ArrowBack />
           </IconButton>
-          <Avatar sx={{ mr: 2, bgcolor: 'rgba(255, 255, 255, 0.2)' }}>
+          <Avatar sx={{ mx: 2, bgcolor: 'rgba(255, 255, 255, 0.2)' }}>
             <Person />
           </Avatar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
             プロフィール編集
           </Typography>
-          {/* ユーザーID表示 */}
-          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-            ID: {user.uid.substring(0, 8)}...
-          </Typography>
         </Toolbar>
       </AppBar>
 
-      {/* メインコンテンツ */}
       <Container maxWidth="md" sx={{ py: 4 }}>
-        <Fade in={true} timeout={1000}>
-          <Card
-            elevation={12}
-            sx={{
-              borderRadius: 4,
-              background: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(10px)',
-            }}
-          >
+        <Fade in timeout={800}>
+          <Card sx={{ boxShadow: 6, borderRadius: 3 }}>
             <CardContent sx={{ p: 4 }}>
-              {/* ユーザー情報表示 */}
-              <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  ログイン情報
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ユーザーID: {user.uid}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  メールアドレス: {user.email}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  メール認証: {user.emailVerified ? '✅ 認証済み' : '❌ 未認証'}
-                </Typography>
-              </Box>
-
-              {/* メッセージ表示 */}
-              {message && (
-                <Alert severity="success" sx={{ mb: 2 }}>
-                  {message}
-                </Alert>
-              )}
-              {profileError && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {profileError}
-                </Alert>
-              )}
-
               <form onSubmit={handleSubmit}>
-                <Stack spacing={4}>
-                  {/* アイコン設定 */}
-                  <Box textAlign="center">
-                    <Avatar
-                      src={icon}
-                      sx={{
-                        width: 120,
-                        height: 120,
-                        margin: '0 auto 16px',
-                        bgcolor: 'primary.main'
-                      }}
-                    >
-                      {!icon && <Restaurant fontSize="large" />}
-                    </Avatar>
-                    <input
-                      accept="image/*"
-                      style={{ display: 'none' }}
-                      id="icon-upload"
-                      type="file"
-                      onChange={handleIconChange}
-                    />
-                    <label htmlFor="icon-upload">
-                      <Button
-                        variant="outlined"
-                        component="span"
-                        startIcon={<PhotoCamera />}
-                        sx={{ borderRadius: 2 }}
-                        disabled={saving}
+                <Stack spacing={3}>
+                  {/* エラーメッセージ */}
+                  {profileError && (
+                    <Alert severity="error" sx={{ borderRadius: 2 }}>
+                      {profileError}
+                    </Alert>
+                  )}
+
+                  {/* 成功メッセージ */}
+                  {message && (
+                    <Alert severity="success" sx={{ borderRadius: 2 }}>
+                      {message}
+                    </Alert>
+                  )}
+
+                  {/* プロフィール画像 */}
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" gutterBottom>
+                      プロフィール画像
+                    </Typography>
+                    <Box sx={{ position: 'relative', display: 'inline-block' }}>
+                      <Avatar
+                        src={icon}
+                        sx={{ 
+                          width: 120, 
+                          height: 120, 
+                          mb: 2, 
+                          border: '4px solid #fff',
+                          boxShadow: 3
+                        }}
                       >
-                        アイコンを選択
-                      </Button>
-                    </label>
+                        <Person sx={{ fontSize: 60 }} />
+                      </Avatar>
+                      <IconButton
+                        component="label"
+                        sx={{
+                          position: 'absolute',
+                          bottom: 8,
+                          right: 8,
+                          bgcolor: 'primary.main',
+                          color: 'white',
+                          '&:hover': { bgcolor: 'primary.dark' }
+                        }}
+                      >
+                        <PhotoCamera />
+                        <input
+                          type="file"
+                          hidden
+                          accept="image/*"
+                          onChange={handleIconChange}
+                        />
+                      </IconButton>
+                    </Box>
                   </Box>
 
-                  {/* ユーザーネーム */}
-                  <TextField
-                    label="ユーザーネーム"
-                    fullWidth
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                    disabled={saving}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 2,
-                      }
-                    }}
-                  />
-
-                  {/* 嗜好設定 */}
+                  {/* displayName入力 */}
                   <Box>
-                    <Typography variant="h6" gutterBottom color="primary" fontWeight="bold">
-                      嗜好設定（3つ選択してください）
+                    <Typography variant="h6" gutterBottom>
+                      表示名 (displayName)
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                    <TextField
+                      fullWidth
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="表示名を入力してください"
+                      variant="outlined"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                        }
+                      }}
+                    />
+                    {username.trim() !== originalDisplayName && (
+                      <Box sx={{ mt: 1 }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<Preview />}
+                          onClick={handlePreviewImpact}
+                        >
+                          変更の影響を確認
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* 嗜好選択 */}
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
+                      好きな料理ジャンル（3つ選択）
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       選択済み: {selectedCategories.length}/3
                     </Typography>
-                    <Grid container spacing={1} mt={1}>
-                      {CATEGORIES.map((cat) => (
-                        <Grid item key={cat}>
+                    <Grid container spacing={1}>
+                      {CATEGORIES.map((category) => (
+                        <Grid item key={category}>
                           <Chip
-                            label={cat}
-                            onClick={() => handleCategoryChange(cat)}
-                            color={selectedCategories.includes(cat) ? "primary" : "default"}
-                            variant={selectedCategories.includes(cat) ? "filled" : "outlined"}
-                            disabled={
-                              saving || (!selectedCategories.includes(cat) && selectedCategories.length >= 3)
-                            }
+                            label={category}
+                            clickable
+                            color={selectedCategories.includes(category) ? "primary" : "default"}
+                            onClick={() => handleCategoryChange(category)}
                             sx={{
-                              borderRadius: 2,
                               '&:hover': {
-                                backgroundColor: selectedCategories.includes(cat) 
-                                  ? 'primary.dark' 
-                                  : 'action.hover'
+                                transform: 'scale(1.05)',
+                                transition: 'transform 0.2s'
                               }
                             }}
                           />
@@ -344,23 +395,21 @@ function EditProfile() {
                     type="submit"
                     variant="contained"
                     size="large"
-                    fullWidth
+                    disabled={saving || selectedCategories.length !== 3}
                     startIcon={saving ? <CircularProgress size={20} /> : <Save />}
-                    disabled={saving}
                     sx={{
-                      borderRadius: 2,
                       py: 1.5,
+                      borderRadius: 2,
+                      fontSize: '1.1rem',
                       background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)',
-                      boxShadow: '0 3px 5px 2px rgba(255, 105, 135, .3)',
                       '&:hover': {
                         background: 'linear-gradient(45deg, #FE6B8B 60%, #FF8E53 100%)',
-                      },
-                      '&:disabled': {
-                        background: 'grey.300',
+                        transform: 'translateY(-2px)',
+                        boxShadow: 6
                       }
                     }}
                   >
-                    {saving ? '保存中...' : '保存'}
+                    {saving ? "保存中..." : "プロフィールを保存"}
                   </Button>
                 </Stack>
               </form>
@@ -368,6 +417,51 @@ function EditProfile() {
           </Card>
         </Fade>
       </Container>
+
+      {/* 影響範囲プレビューダイアログ */}
+      <Dialog 
+        open={previewDialog} 
+        onClose={() => setPreviewDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>displayName変更の影響範囲</DialogTitle>
+        <DialogContent>
+          {updateImpact && (
+            <Box>
+              <Typography variant="body1" gutterBottom>
+                {updateImpact.message}
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
+                更新対象の詳細:
+              </Typography>
+              <Box sx={{ pl: 2 }}>
+                <Typography>• ユーザープロフィール: {updateImpact.details.userProfile}件</Typography>
+                <Typography>• レストランレビュー: {updateImpact.details.restaurantReviews}件</Typography>
+                <Typography>• 投稿レストラン情報: {updateImpact.details.postRestaurantInfo}件</Typography>
+                <Typography>• レビューデータ: {updateImpact.details.reviews}件</Typography>
+              </Box>
+              <Alert severity="info" sx={{ mt: 2 }}>
+                この変更により、過去の投稿・レビューすべてに新しいdisplayNameが反映されます。
+              </Alert>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreviewDialog(false)}>
+            キャンセル
+          </Button>
+          <Button 
+            onClick={() => {
+              setPreviewDialog(false);
+              handleSubmit({ preventDefault: () => {} });
+            }}
+            variant="contained"
+          >
+            実行する
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

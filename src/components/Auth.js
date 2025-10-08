@@ -8,6 +8,7 @@ import {
 } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { FOOD_CATEGORIES, MAX_CATEGORIES } from "../constants/categories";
 import {
   Container,
   Box,
@@ -49,19 +50,12 @@ function Auth() {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const navigate = useNavigate();
 
-  // カテゴリー選択肢
-  const foodCategories = [
-    "和食", "洋食", "中華", "イタリアン", "フレンチ",
-    "韓国料理", "タイ料理", "インド料理", "ラーメン", "寿司",
-    "焼肉", "居酒屋", "カフェ", "スイーツ"
-  ];
-
   // カテゴリー選択
   const handleCategoryChange = (category) => {
     setSelectedCategories(prev => {
       if (prev.includes(category)) {
         return prev.filter(c => c !== category);
-      } else if (prev.length < 3) {
+      } else if (prev.length < MAX_CATEGORIES) {
         return [...prev, category];
       }
       return prev;
@@ -332,13 +326,13 @@ function Auth() {
                   {isRegister && (
                     <Box>
                       <Typography variant="h6" gutterBottom>
-                        好きなカテゴリーを選択（最大3つ）
+                        好きなカテゴリーを選択（最大{MAX_CATEGORIES}つ）
                       </Typography>
                       <Typography variant="body2" color="grey.600" gutterBottom>
-                        選択済み: {selectedCategories.length}/3
+                        選択済み: {selectedCategories.length}/{MAX_CATEGORIES}
                       </Typography>
                       <Grid container spacing={1}>
-                        {foodCategories.map((category) => (
+                        {FOOD_CATEGORIES.map((category) => (
                           <Grid item xs={6} sm={4} key={category}>
                             <Chip
                               label={category}

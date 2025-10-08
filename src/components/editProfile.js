@@ -7,6 +7,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
   updateUserProfile
 } from "../utils/dataSync";
+import { FOOD_CATEGORIES, MAX_CATEGORIES } from "../constants/categories";
 import {
   Container,
   Box,
@@ -37,11 +38,6 @@ import {
   Save,
   Preview
 } from "@mui/icons-material";
-
-const CATEGORIES = [
-  "中華", "イタリアン", "和食", "スイーツ", "カレー", "ピザ", "ラーメン", "ハンバーガー",
-  "丼", "定食", "寿司", "韓国料理", "焼肉", "パン", "エスニック料理"
-];
 
 function EditProfile() {
   const [user, loading] = useAuthState(auth);
@@ -88,7 +84,7 @@ function EditProfile() {
   const handleCategoryChange = (category) => {
     if (selectedCategories.includes(category)) {
       setSelectedCategories(selectedCategories.filter((c) => c !== category));
-    } else if (selectedCategories.length < 3) {
+    } else if (selectedCategories.length < MAX_CATEGORIES) {
       setSelectedCategories([...selectedCategories, category]);
     }
   };
@@ -143,8 +139,8 @@ function EditProfile() {
       return;
     }
     
-    if (selectedCategories.length !== 3) {
-      setProfileError("嗜好は3つ選択してください。");
+    if (selectedCategories.length !== MAX_CATEGORIES) {
+      setProfileError(`嗜好は${MAX_CATEGORIES}つ選択してください。`);
       return;
     }
     
@@ -365,13 +361,13 @@ function EditProfile() {
                   {/* 嗜好選択 */}
                   <Box>
                     <Typography variant="h6" gutterBottom>
-                      好きな料理ジャンル（3つ選択）
+                      好きな料理ジャンル（{MAX_CATEGORIES}つ選択）
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      選択済み: {selectedCategories.length}/3
+                      選択済み: {selectedCategories.length}/{MAX_CATEGORIES}
                     </Typography>
                     <Grid container spacing={1}>
-                      {CATEGORIES.map((category) => (
+                      {FOOD_CATEGORIES.map((category) => (
                         <Grid item key={category}>
                           <Chip
                             label={category}
@@ -395,7 +391,7 @@ function EditProfile() {
                     type="submit"
                     variant="contained"
                     size="large"
-                    disabled={saving || selectedCategories.length !== 3}
+                    disabled={saving || selectedCategories.length !== MAX_CATEGORIES}
                     startIcon={saving ? <CircularProgress size={20} /> : <Save />}
                     sx={{
                       py: 1.5,

@@ -4,6 +4,7 @@ import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
 import { performMapSearch, detectSearchType, getRestaurantReviews } from '../utils/mapSearchUtils';
+import { FOOD_CATEGORIES } from '../constants/categories';
 import {
   Box,
   TextField,
@@ -54,11 +55,6 @@ function GoogleMap() {
   const [selectedRestaurantReviews, setSelectedRestaurantReviews] = useState([]);
   const [selectedRestaurantName, setSelectedRestaurantName] = useState('');
   const [loadingReviews, setLoadingReviews] = useState(false);
-
-  const categories = [
-    "和食", "洋食", "中華", "イタリアン", "フレンチ", "焼肉", "寿司", 
-    "ラーメン", "カフェ", "居酒屋", "ファストフード", "デザート", "その他"
-  ];
 
   // レビューデータを取得
   const fetchReviews = useCallback(async () => {
@@ -477,7 +473,7 @@ function GoogleMap() {
                 size="small"
               >
                 <MenuItem value="">すべて</MenuItem>
-                {categories.map((cat) => (
+                {FOOD_CATEGORIES.map((cat) => (
                   <MenuItem key={cat} value={cat}>
                     {cat}
                   </MenuItem>

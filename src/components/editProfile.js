@@ -38,6 +38,7 @@ import {
   Save,
   Preview
 } from "@mui/icons-material";
+import Footer from "./Footer";
 
 function EditProfile() {
   const [user, loading] = useAuthState(auth);
@@ -458,6 +459,11 @@ function EditProfile() {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* フッター用のスペーサー */}
+      <Box sx={{ height: 80 }} />
+      
+      {/* フッター */}
+      <Footer />
     </Box>
   );
 }

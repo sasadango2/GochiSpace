@@ -40,6 +40,7 @@ import {
   Restaurant,
   LocationOn
 } from "@mui/icons-material";
+import Footer from "./Footer";
 
 function ReviewPost() {
   const navigate = useNavigate();
@@ -622,6 +623,12 @@ function ReviewPost() {
           </Card>
         </Fade>
       </Container>
+      
+      {/* フッター用のスペーサー */}
+      <Box sx={{ height: 80 }} />
+      
+      {/* フッター */}
+      <Footer />
     </Box>
   );
 }

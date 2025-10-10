@@ -74,3 +74,50 @@ code {
 button, .clickable {
   touch-action: manipulation;
 }
+
+/* 固定位置要素の最適化（スマホ対応） */
+.fixed-header, .fixed-footer {
+  position: fixed !important;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+/* iOS Safari固有の固定位置問題対策 */
+@supports (-webkit-overflow-scrolling: touch) {
+  .fixed-header, .fixed-footer {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* スマホサイズでの追加最適化 */
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+    position: relative;
+  }
+  
+  .fixed-header {
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+  }
+  
+  .fixed-footer {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+  }
+  
+  /* スクロール時の固定位置強化 */
+  .fixed-header, .fixed-footer {
+    position: fixed !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    transform: translate3d(0, 0, 0) !important;
+  }
+}

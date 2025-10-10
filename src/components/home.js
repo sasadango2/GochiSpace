@@ -9,7 +9,6 @@ import {
   Box,
   Typography,
   Button,
-  Stack,
   AppBar,
   Toolbar,
   Avatar,
@@ -27,8 +26,6 @@ import {
 } from "@mui/material";
 import {
   Logout,
-  Person,
-  RateReview,
   Restaurant,
   Notifications,
   FollowTheSigns,
@@ -41,6 +38,7 @@ import {
   getUserReviewsIfMutual
 } from "../utils/firebaseTest";
 import * as notificationSystem from "../utils/notificationSystem";
+import Footer from "./Footer";
 
 function Home() {
   const navigate = useNavigate();
@@ -255,14 +253,6 @@ function Home() {
   const logout = async () => {
     await signOut(auth);
     navigate("/");
-  };
-
-  const myprofile = () => {
-    navigate("/editprofile");
-  };
-
-  const reviewpost = () => {
-    navigate("/reviewpost");
   };
 
   return (
@@ -524,7 +514,7 @@ function Home() {
             </Card>
 
             {/* アクションボタン */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} justifyContent="center">
+            {/* <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} justifyContent="center">
               <Button
                 variant="contained"
                 size="large"
@@ -563,10 +553,16 @@ function Home() {
               >
                 レビュー投稿
               </Button>
-            </Stack>
+            </Stack> */}
           </Box>
         </Fade>
       </Container>
+      
+      {/* フッター用のスペーサー */}
+      <Box sx={{ height: 80 }} />
+      
+      {/* フッター */}
+      <Footer />
     </Box>
   );
 }

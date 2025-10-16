@@ -166,7 +166,7 @@ function GoogleMap() {
 
     try {
       const detailedReviews = await getRestaurantReviews(restaurantLocation, user.uid);
-      setSelectedRestaurantReviews(detailedReviews);
+      setSelectedRestaurantReviews(Array.isArray(detailedReviews) ? detailedReviews : []);
     } catch (error) {
       console.error('詳細レビュー取得エラー:', error);
       setSelectedRestaurantReviews([]);
@@ -184,34 +184,62 @@ function GoogleMap() {
 
   // マップの初期化
   useEffect(() => {
-    const loader = new Loader({
-      apiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
-      version: 'weekly',
-      libraries: ['places']
-    });
+    // DOM要素の準備を待つために少し遅延を追加
+    const initializeMap = () => {
+      const loader = new Loader({
+        apiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
+        version: 'weekly',
+        libraries: ['places']
+      });
 
-    loader.load().then(() => {
+      loader.load().then(() => {
       //geolocationで現在地を取得
       navigator.geolocation.getCurrentPosition(position => {
         const userLat = position.coords.latitude;
         const userLng = position.coords.longitude;
 
-        const mapInstance = new window.google.maps.Map(mapRef.current, {
-          center: { lat: userLat, lng: userLng },
-          zoom: 10,
-          styles: [
-            {
-              featureType: 'poi',
-              elementType: 'labels',
-              stylers: [{ visibility: 'off' }]
-            }
-          ]
-        });
-        setMap(mapInstance);
+        // mapRef.currentがnullでないことと、DOM要素が準備されていることを確認
+        if (mapRef.current && mapRef.current instanceof HTMLElement) {
+          const mapInstance = new window.google.maps.Map(mapRef.current, {
+            center: { lat: userLat, lng: userLng },
+            zoom: 10,
+            styles: [
+              {
+                featureType: 'poi',
+                elementType: 'labels',
+                stylers: [{ visibility: 'off' }]
+              }
+            ]
+          });
+          setMap(mapInstance);
+        } else {
+          console.error('Map container not found');
+        }
+      }, error => {
+        console.error('Geolocation error:', error);
+        // geolocationが失敗した場合のデフォルト位置（東京）
+        if (mapRef.current && mapRef.current instanceof HTMLElement) {
+          const mapInstance = new window.google.maps.Map(mapRef.current, {
+            center: { lat: 35.6762, lng: 139.6503 }, // 東京駅
+            zoom: 10,
+            styles: [
+              {
+                featureType: 'poi',
+                elementType: 'labels',
+                stylers: [{ visibility: 'off' }]
+              }
+            ]
+          });
+          setMap(mapInstance);
+        }
       });
     }).catch(error => {
       console.error('Google Maps API読み込みエラー:', error);
     });
+    };
+
+    // DOM要素が準備されるまで少し待つ
+    setTimeout(initializeMap, 100);
   }, []);
 
   // レビューデータの初期取得
@@ -473,11 +501,11 @@ function GoogleMap() {
                 size="small"
               >
                 <MenuItem value="">すべて</MenuItem>
-                {FOOD_CATEGORIES.map((cat) => (
+                {FOOD_CATEGORIES?.map((cat) => (
                   <MenuItem key={cat} value={cat}>
                     {cat}
                   </MenuItem>
-                ))}
+                )) || []}
               </Select>
             </FormControl>
 
@@ -591,6 +619,7 @@ function GoogleMap() {
 
       {/* マップ */}
       <Box
+        id="google-map-container"
         ref={mapRef}
         sx={{
           width: '100%',
@@ -625,7 +654,7 @@ function GoogleMap() {
               {selectedRestaurantName}
             </Typography>
             <Chip 
-              label={`${selectedRestaurantReviews.length}件のレビュー`} 
+              label={`${selectedRestaurantReviews?.length || 0}件のレビュー`} 
               size="small" 
               color="primary" 
             />
@@ -637,7 +666,7 @@ function GoogleMap() {
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
               <Typography>レビューを読み込み中...</Typography>
             </Box>
-          ) : selectedRestaurantReviews.length === 0 ? (
+          ) : !selectedRestaurantReviews || selectedRestaurantReviews.length === 0 ? (
             <Box sx={{ textAlign: 'center', p: 3 }}>
               <Typography color="text.secondary">
                 相互フォローユーザーのレビューがありません
@@ -645,7 +674,7 @@ function GoogleMap() {
             </Box>
           ) : (
             <Stack spacing={2}>
-              {selectedRestaurantReviews.map((review, index) => (
+              {selectedRestaurantReviews?.map((review, index) => (
                 <Paper key={review.id} elevation={1} sx={{ p: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                     <Avatar sx={{ bgcolor: 'primary.main' }}>
@@ -686,11 +715,11 @@ function GoogleMap() {
                     </Box>
                   </Box>
                   
-                  {index < selectedRestaurantReviews.length - 1 && (
+                  {index < (selectedRestaurantReviews?.length || 0) - 1 && (
                     <Divider sx={{ mt: 2 }} />
                   )}
                 </Paper>
-              ))}
+              )) || []}
             </Stack>
           )}
         </DialogContent>

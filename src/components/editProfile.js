@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, db, storage } from "../firebase";
+import { auth, db } from "../firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
   updateUserProfile
 } from "../utils/dataSync";
@@ -34,7 +33,6 @@ import {
 import {
   ArrowBack,
   Person,
-  PhotoCamera,
   Save,
   Preview
 } from "@mui/icons-material";
@@ -42,11 +40,11 @@ import Footer from "./Footer";
 
 function EditProfile() {
   const [user, loading] = useAuthState(auth);
+  const [userId, setUserId] = useState("");
   const [username, setUsername] = useState("");
   const [originalDisplayName, setOriginalDisplayName] = useState("");
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [icon, setIcon] = useState(null);
-  const [iconFile, setIconFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [profileError, setProfileError] = useState("");
@@ -68,6 +66,7 @@ function EditProfile() {
         setOriginalDisplayName(displayName);
         setSelectedCategories(userData.preferences || []);
         setIcon(userData.profileImage || null);
+        setUserId(userData.userId || user.uid); // FirestoreからuserIdを取得
       }
     } catch (error) {
       console.error("プロフィール読み込みエラー:", error);
@@ -102,33 +101,17 @@ function EditProfile() {
       setUpdateImpact({ 
         reviewsToUpdate: "自動計算", 
         restaurantsToUpdate: "自動更新",
-        message: "Cloud Functions により関連データが自動同期されます"
+        message: "Cloud Functions により関連データが自動同期されます",
+        details: {
+          userProfile: "自動計算",
+          restaurantReviews: "自動計算", 
+          postRestaurantInfo: "自動計算",
+          reviews: "自動計算"
+        }
       });
       setPreviewDialog(true);
     } catch (error) {
       setProfileError("プロフィール更新の準備中にエラーが発生しました");
-    }
-  };
-
-  const handleIconChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setIconFile(file);
-      setIcon(URL.createObjectURL(file));
-    }
-  };
-
-  const uploadProfileImage = async () => {
-    if (!iconFile || !user) return null;
-    
-    try {
-      const imageRef = ref(storage, `profile-images/${user.uid}/${Date.now()}`);
-      const snapshot = await uploadBytes(imageRef, iconFile);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      return downloadURL;
-    } catch (error) {
-      console.error("画像アップロードエラー:", error);
-      throw new Error("画像のアップロードに失敗しました。");
     }
   };
 
@@ -162,12 +145,6 @@ function EditProfile() {
         console.log("displayName更新完了 - 関連レビューは自動同期されます");
       }
 
-      // プロフィール画像をアップロード（ある場合）
-      let profileImageUrl = icon;
-      if (iconFile) {
-        profileImageUrl = await uploadProfileImage();
-      }
-
       // Firestoreにユーザー情報を保存（userIdは変更しない）
       const userDocRef = doc(db, "users", user.uid);
       const userData = {
@@ -175,7 +152,7 @@ function EditProfile() {
         displayName: username.trim(), // displayNameのみ更新
         email: user.email,
         emailVerified: user.emailVerified,
-        profileImage: profileImageUrl || "",
+        profileImage: icon || "",
         preferences: selectedCategories,
         updatedAt: new Date()
       };
@@ -201,7 +178,7 @@ function EditProfile() {
         displayName: username.trim(),
         email: user.email,
         emailVerified: user.emailVerified,
-        profileImage: profileImageUrl || "",
+        profileImage: icon || "",
         preferences: selectedCategories
       };
 
@@ -254,7 +231,7 @@ function EditProfile() {
   return (
     <Box sx={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
       {/* ヘッダー */}
-      <AppBar position="static" sx={{ background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)' }}>
+      <AppBar position="static" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
         <Toolbar>
           <IconButton color="inherit" onClick={() => navigate("/home")}>
             <ArrowBack />
@@ -270,68 +247,191 @@ function EditProfile() {
 
       <Container maxWidth="md" sx={{ py: 4 }}>
         <Fade in timeout={800}>
-          <Card sx={{ boxShadow: 6, borderRadius: 3 }}>
+          <Card sx={{ 
+            boxShadow: '0 8px 32px rgba(102, 126, 234, 0.2)', 
+            borderRadius: 4,
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
+          }}>
             <CardContent sx={{ p: 4 }}>
               <form onSubmit={handleSubmit}>
                 <Stack spacing={3}>
                   {/* エラーメッセージ */}
                   {profileError && (
-                    <Alert severity="error" sx={{ borderRadius: 2 }}>
+                    <Alert 
+                      severity="error" 
+                      sx={{ 
+                        borderRadius: 3,
+                        boxShadow: '0 4px 20px rgba(244, 67, 54, 0.2)',
+                        border: '1px solid rgba(244, 67, 54, 0.2)'
+                      }}
+                    >
                       {profileError}
                     </Alert>
                   )}
 
                   {/* 成功メッセージ */}
                   {message && (
-                    <Alert severity="success" sx={{ borderRadius: 2 }}>
+                    <Alert 
+                      severity="success" 
+                      sx={{ 
+                        borderRadius: 3,
+                        boxShadow: '0 4px 20px rgba(76, 175, 80, 0.2)',
+                        border: '1px solid rgba(76, 175, 80, 0.2)'
+                      }}
+                    >
                       {message}
                     </Alert>
                   )}
 
-                  {/* プロフィール画像 */}
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" gutterBottom>
-                      プロフィール画像
-                    </Typography>
-                    <Box sx={{ position: 'relative', display: 'inline-block' }}>
-                      <Avatar
+                  {/* ユーザー情報表示 */}
+                  <Box 
+                    sx={{ 
+                      textAlign: 'center',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      borderRadius: 3,
+                      p: 3,
+                      color: 'white',
+                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%)',
+                        borderRadius: 3,
+                        zIndex: 1
+                      }
+                    }}
+                  >
+                    <Box sx={{ position: 'relative', zIndex: 2 }}>
+                      {/* <Avatar
                         src={icon}
                         sx={{ 
-                          width: 120, 
-                          height: 120, 
-                          mb: 2, 
-                          border: '4px solid #fff',
-                          boxShadow: 3
+                          width: 100, 
+                          height: 100, 
+                          mx: 'auto',
+                          mb: 2,
+                          border: '4px solid rgba(255, 255, 255, 0.3)',
+                          boxShadow: '0 8px 25px rgba(0, 0, 0, 0.2)',
+                          backgroundColor: 'rgba(255, 255, 255, 0.2)'
                         }}
                       >
-                        <Person sx={{ fontSize: 60 }} />
-                      </Avatar>
-                      <IconButton
-                        component="label"
-                        sx={{
-                          position: 'absolute',
-                          bottom: 8,
-                          right: 8,
-                          bgcolor: 'primary.main',
-                          color: 'white',
-                          '&:hover': { bgcolor: 'primary.dark' }
+                        <Person sx={{ fontSize: 50, color: 'white' }} />
+                      </Avatar> */}
+                      
+                      <Typography 
+                        variant="h5" 
+                        sx={{ 
+                          fontWeight: 'bold', 
+                          mb: 1,
+                          textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
                         }}
                       >
-                        <PhotoCamera />
-                        <input
-                          type="file"
-                          hidden
-                          accept="image/*"
-                          onChange={handleIconChange}
-                        />
-                      </IconButton>
+                        ユーザー情報
+                      </Typography>
+                      
+                      <Box 
+                        sx={{ 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          gap: 2,
+                          maxWidth: 400,
+                          mx: 'auto'
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            background: 'rgba(255, 255, 255, 0.15)',
+                            borderRadius: 2,
+                            p: 2,
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)'
+                          }}
+                        >
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              opacity: 0.8, 
+                              mb: 0.5,
+                              fontSize: '0.875rem',
+                              fontWeight: 500
+                            }}
+                          >
+                            ユーザーID
+                          </Typography>
+                          <Typography 
+                            variant="h6" 
+                            sx={{ 
+                              fontWeight: 'bold',
+                              fontSize: '1.1rem',
+                              wordBreak: 'break-all'
+                            }}
+                          >
+                            {userId || user?.uid || 'ユーザーIDを取得できませんでした'}
+                          </Typography>
+                        </Box>
+                        
+                        <Box
+                          sx={{
+                            background: 'rgba(255, 255, 255, 0.15)',
+                            borderRadius: 2,
+                            p: 2,
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)'
+                          }}
+                        >
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              opacity: 0.8, 
+                              mb: 0.5,
+                              fontSize: '0.875rem',
+                              fontWeight: 500
+                            }}
+                          >
+                            表示名
+                          </Typography>
+                          <Typography 
+                            variant="h6" 
+                            sx={{ 
+                              fontWeight: 'bold',
+                              fontSize: '1.1rem'
+                            }}
+                          >
+                            {username || 'ユーザーネームを取得できませんでした'}
+                          </Typography>
+                        </Box>
+                      </Box>
                     </Box>
                   </Box>
 
                   {/* displayName入力 */}
-                  <Box>
-                    <Typography variant="h6" gutterBottom>
-                      表示名 (displayName)
+                  <Box 
+                    sx={{
+                      background: 'linear-gradient(135deg, #667eea 20%, #764ba2 80%)',
+                      borderRadius: 4,
+                      p: 3,
+                      color: 'white',
+                      boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)'
+                    }}
+                  >
+                    <Typography 
+                      variant="h6" 
+                      gutterBottom
+                      sx={{ 
+                        fontWeight: 'bold',
+                        textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                        textAlign: 'center'
+                      }}
+                    >
+                      表示名の設定
                     </Typography>
                     <TextField
                       fullWidth
@@ -341,17 +441,47 @@ function EditProfile() {
                       variant="outlined"
                       sx={{
                         '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
+                          borderRadius: 3,
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                          backdropFilter: 'blur(10px)',
+                          '& fieldset': {
+                            borderColor: 'rgba(255, 255, 255, 0.5)',
+                          },
+                          '&:hover fieldset': {
+                            borderColor: 'rgba(255, 255, 255, 0.8)',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: 'white',
+                            borderWidth: '2px'
+                          }
+                        },
+                        '& .MuiInputLabel-root': {
+                          color: 'rgba(0, 0, 0, 0.6)'
                         }
                       }}
                     />
                     {username.trim() !== originalDisplayName && (
-                      <Box sx={{ mt: 1 }}>
+                      <Box sx={{ mt: 2, textAlign: 'center' }}>
                         <Button
                           variant="outlined"
                           size="small"
                           startIcon={<Preview />}
                           onClick={handlePreviewImpact}
+                          sx={{
+                            borderRadius: 3,
+                            borderColor: 'rgba(255, 255, 255, 0.8)',
+                            color: 'white',
+                            backdropFilter: 'blur(10px)',
+                            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
+                            '&:hover': {
+                              borderColor: 'white',
+                              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 6px 20px rgba(0, 0, 0, 0.2)',
+                              transition: 'all 0.3s ease'
+                            }
+                          }}
                         >
                           変更の影響を確認
                         </Button>
@@ -360,11 +490,39 @@ function EditProfile() {
                   </Box>
 
                   {/* 嗜好選択 */}
-                  <Box>
-                    <Typography variant="h6" gutterBottom>
+                  <Box 
+                    sx={{
+                      background: 'linear-gradient(135deg, #764ba2 20%, #667eea 80%)',
+                      borderRadius: 4,
+                      p: 3,
+                      color: 'white',
+                      boxShadow: '0 8px 32px rgba(118, 75, 162, 0.3)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)'
+                    }}
+                  >
+                    <Typography 
+                      variant="h6" 
+                      gutterBottom
+                      sx={{ 
+                        fontWeight: 'bold',
+                        textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                        textAlign: 'center'
+                      }}
+                    >
                       好きな料理ジャンル（{MAX_CATEGORIES}つ選択）
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        mb: 2, 
+                        textAlign: 'center',
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: 3,
+                        p: 1.5,
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)'
+                      }}
+                    >
                       選択済み: {selectedCategories.length}/{MAX_CATEGORIES}
                     </Typography>
                     <Grid container spacing={1}>
@@ -373,12 +531,32 @@ function EditProfile() {
                           <Chip
                             label={category}
                             clickable
-                            color={selectedCategories.includes(category) ? "primary" : "default"}
                             onClick={() => handleCategoryChange(category)}
                             sx={{
+                              backgroundColor: selectedCategories.includes(category) 
+                                ? 'rgba(255, 255, 255, 0.95)' 
+                                : 'rgba(255, 255, 255, 0.2)',
+                              color: selectedCategories.includes(category) 
+                                ? '#667eea' 
+                                : 'white',
+                              border: selectedCategories.includes(category) 
+                                ? '2px solid rgba(255, 255, 255, 0.8)' 
+                                : '1px solid rgba(255, 255, 255, 0.3)',
+                              fontWeight: selectedCategories.includes(category) 
+                                ? 'bold' 
+                                : 'normal',
+                              backdropFilter: 'blur(10px)',
+                              borderRadius: 3,
+                              boxShadow: selectedCategories.includes(category)
+                                ? '0 4px 15px rgba(102, 126, 234, 0.3)'
+                                : '0 2px 8px rgba(0, 0, 0, 0.1)',
                               '&:hover': {
                                 transform: 'scale(1.05)',
-                                transition: 'transform 0.2s'
+                                transition: 'all 0.3s ease',
+                                backgroundColor: selectedCategories.includes(category) 
+                                  ? 'white' 
+                                  : 'rgba(255, 255, 255, 0.3)',
+                                boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)'
                               }
                             }}
                           />
@@ -388,26 +566,39 @@ function EditProfile() {
                   </Box>
 
                   {/* 保存ボタン */}
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    size="large"
-                    disabled={saving || selectedCategories.length !== MAX_CATEGORIES}
-                    startIcon={saving ? <CircularProgress size={20} /> : <Save />}
-                    sx={{
-                      py: 1.5,
-                      borderRadius: 2,
-                      fontSize: '1.1rem',
-                      background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)',
-                      '&:hover': {
-                        background: 'linear-gradient(45deg, #FE6B8B 60%, #FF8E53 100%)',
-                        transform: 'translateY(-2px)',
-                        boxShadow: 6
-                      }
-                    }}
-                  >
-                    {saving ? "保存中..." : "プロフィールを保存"}
-                  </Button>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      size="large"
+                      disabled={saving || selectedCategories.length !== MAX_CATEGORIES}
+                      startIcon={saving ? <CircularProgress size={20} /> : <Save />}
+                      sx={{
+                        py: 2.5,
+                        px: 8,
+                        borderRadius: 4,
+                        fontSize: '1.2rem',
+                        fontWeight: 'bold',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        boxShadow: '0 8px 32px rgba(102, 126, 234, 0.4)',
+                        minWidth: 280,
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #5a67d8 0%, #6c63ff 100%)',
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 16px 48px rgba(102, 126, 234, 0.6)',
+                          transition: 'all 0.3s ease'
+                        },
+                        '&:disabled': {
+                          background: 'rgba(102, 126, 234, 0.3)',
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          boxShadow: 'none'
+                        }
+                      }}
+                    >
+                      {saving ? "保存中..." : "プロフィールを保存"}
+                    </Button>
+                  </Box>
                 </Stack>
               </form>
             </CardContent>
@@ -421,8 +612,24 @@ function EditProfile() {
         onClose={() => setPreviewDialog(false)}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 16px 48px rgba(102, 126, 234, 0.3)',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
+          }
+        }}
       >
-        <DialogTitle>displayName変更の影響範囲</DialogTitle>
+        <DialogTitle sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          fontWeight: 'bold',
+          borderRadius: '16px 16px 0 0'
+        }}>
+          displayName変更の影響範囲
+        </DialogTitle>
         <DialogContent>
           {updateImpact && (
             <Box>
@@ -433,19 +640,39 @@ function EditProfile() {
                 更新対象の詳細:
               </Typography>
               <Box sx={{ pl: 2 }}>
-                <Typography>• ユーザープロフィール: {updateImpact.details.userProfile}件</Typography>
-                <Typography>• レストランレビュー: {updateImpact.details.restaurantReviews}件</Typography>
-                <Typography>• 投稿レストラン情報: {updateImpact.details.postRestaurantInfo}件</Typography>
-                <Typography>• レビューデータ: {updateImpact.details.reviews}件</Typography>
+                <Typography>• ユーザープロフィール: {updateImpact.details?.userProfile || "計算中"}件</Typography>
+                <Typography>• レストランレビュー: {updateImpact.details?.restaurantReviews || "計算中"}件</Typography>
+                <Typography>• 投稿レストラン情報: {updateImpact.details?.postRestaurantInfo || "計算中"}件</Typography>
+                <Typography>• レビューデータ: {updateImpact.details?.reviews || "計算中"}件</Typography>
               </Box>
-              <Alert severity="info" sx={{ mt: 2 }}>
+              <Alert 
+                severity="info" 
+                sx={{ 
+                  mt: 2,
+                  borderRadius: 3,
+                  boxShadow: '0 4px 20px rgba(33, 150, 243, 0.2)',
+                  border: '1px solid rgba(33, 150, 243, 0.2)'
+                }}
+              >
                 この変更により、過去の投稿・レビューすべてに新しいdisplayNameが反映されます。
               </Alert>
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPreviewDialog(false)}>
+        <DialogActions sx={{ p: 3, gap: 2 }}>
+          <Button 
+            onClick={() => setPreviewDialog(false)}
+            sx={{
+              borderRadius: 3,
+              px: 3,
+              py: 1,
+              color: '#667eea',
+              border: '1px solid #667eea',
+              '&:hover': {
+                backgroundColor: 'rgba(102, 126, 234, 0.1)'
+              }
+            }}
+          >
             キャンセル
           </Button>
           <Button 
@@ -454,6 +681,17 @@ function EditProfile() {
               handleSubmit({ preventDefault: () => {} });
             }}
             variant="contained"
+            sx={{
+              borderRadius: 3,
+              px: 4,
+              py: 1,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              boxShadow: '0 4px 20px rgba(102, 126, 234, 0.3)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5a67d8 0%, #6c63ff 100%)',
+                boxShadow: '0 6px 25px rgba(102, 126, 234, 0.4)'
+              }
+            }}
           >
             実行する
           </Button>

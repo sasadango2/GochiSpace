@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "../firebase";
 import { saveReviewData } from "../utils/dataSync";
+import { FOOD_CATEGORIES } from "../constants/categories";
 import {
   Container,
   Box,
@@ -62,12 +63,6 @@ function ReviewPost() {
   // 投稿状態
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-
-  // カテゴリーオプション
-  const categories = [
-    "和食", "洋食", "中華", "イタリアン", "フレンチ", "焼肉", "寿司", 
-    "ラーメン", "カフェ", "居酒屋", "ファストフード", "デザート", "その他"
-  ];
 
   // Google Maps API の初期化
   useEffect(() => {
@@ -552,11 +547,11 @@ function ReviewPost() {
                       onChange={(e) => setCategory(e.target.value)}
                       sx={{ borderRadius: 2 }}
                     >
-                      {categories.map((cat) => (
+                      {FOOD_CATEGORIES?.map((cat) => (
                         <MenuItem key={cat} value={cat}>
                           {cat}
                         </MenuItem>
-                      ))}
+                      )) || []}
                     </Select>
                   </FormControl>
 

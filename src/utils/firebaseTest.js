@@ -161,6 +161,37 @@ export const searchUsersByDisplayName = async (searchText) => {
 };
 
 /**
+ * ユーザー検索（userIdで部分一致）
+ */
+export const searchUsersByUserId = async (searchText) => {
+  if (!searchText) return [];
+  
+  try {
+    // Firestoreでは部分一致が困難なため、全取得してフィルター
+    const usersSnap = await getDocs(collection(db, "users"));
+    const matchedUsers = [];
+    
+    usersSnap.forEach(docu => {
+      const userData = docu.data();
+      const userId = userData.userId || userData.displayName || "";
+      
+      // userIdフィールドまたはdisplayNameで部分一致検索
+      if (userId.toLowerCase().includes(searchText.toLowerCase())) {
+        matchedUsers.push({
+          id: docu.id,
+          ...userData
+        });
+      }
+    });
+    
+    return matchedUsers;
+  } catch (error) {
+    console.error("ユーザーID検索エラー:", error);
+    return [];
+  }
+};
+
+/**
  * フォロー・解除
  */
 export const followUser = async (myUserId, targetUserId) => {

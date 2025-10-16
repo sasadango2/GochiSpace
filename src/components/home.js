@@ -15,11 +15,9 @@ import {
   Fade,
   Card,
   CardContent,
-  TextField,
   List,
   ListItem,
   ListItemText,
-  ListItemButton,
   IconButton,
   Badge,
   Chip
@@ -28,35 +26,15 @@ import {
   Logout,
   Restaurant,
   Notifications,
-  FollowTheSigns,
-  Cancel,
   CheckCircle,
   Pending
 } from "@mui/icons-material";
-import {
-  searchUsersByDisplayName,
-  getUserReviewsIfMutual
-} from "../utils/firebaseTest";
 import * as notificationSystem from "../utils/notificationSystem";
 import Footer from "./Footer";
 
 function Home() {
   const navigate = useNavigate();
-  const [searchText, setSearchText] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [profile, setProfile] = useState(null);
   const [userDisplayName, setUserDisplayName] = useState("");
-  const [followStatus, setFollowStatus] = useState({
-    iFollowThem: false,
-    theyFollowMe: false,
-    isMutual: false,
-    myFollowStatus: "none",
-    theirFollowStatus: "none",
-    action: "send_request",
-    buttonText: "フォローする",
-    description: ""
-  });
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -142,74 +120,6 @@ function Home() {
     };
   }, []); // 空の依存配列でコンポーネントマウント時のみ実行
 
-  // 検索
-  const handleSearch = async () => {
-    if (!searchText.trim()) return;
-    
-    try {
-      // ユーザー検索のみ（displayNameで部分一致）
-      const users = await searchUsersByDisplayName(searchText);
-      setSearchResults(users);
-    } catch (error) {
-      console.error("検索エラー:", error);
-    }
-  };
-
-  // ユーザー選択時
-  const handleUserSelect = async (user) => {
-    try {
-      setProfile(user);
-      const status = await notificationSystem.getDetailedFollowStatus(currentUserId, user.id);
-      setFollowStatus(status);
-      
-      if (status.isMutual) {
-        const reviews = await getUserReviewsIfMutual(currentUserId, user.id);
-        setReviews(reviews);
-      } else {
-        setReviews([]);
-      }
-    } catch (error) {
-      console.error("ユーザー選択エラー:", error);
-    }
-  };
-
-  // フォローアクション（新しい統合システム）
-  const handleFollowAction = async (userId) => {
-    try {
-      const result = await notificationSystem.handleFollowAction(currentUserId, userId);
-      
-      // フォロー状態を更新
-      const newStatus = await notificationSystem.getDetailedFollowStatus(currentUserId, userId);
-      setFollowStatus(newStatus);
-      
-      // 成功メッセージを表示
-      alert(result.message);
-
-      // 相互フォローが成立した場合、レビューを取得
-      if (newStatus.isMutual) {
-        const reviews = await getUserReviewsIfMutual(currentUserId, userId);
-        setReviews(reviews);
-      }
-    } catch (error) {
-      console.error("フォローアクションエラー:", error);
-      alert(error.message || "フォロー処理に失敗しました");
-    }
-  };
-
-  // フォロー解除
-  const handleUnfollow = async (userId) => {
-    try {
-      const result = await notificationSystem.unfollowUser(currentUserId, userId);
-      const newStatus = await notificationSystem.getDetailedFollowStatus(currentUserId, userId);
-      setFollowStatus(newStatus);
-      setReviews([]); // レビューも非表示
-      alert(result.message);
-    } catch (error) {
-      console.error("フォロー解除エラー:", error);
-      alert("フォロー解除に失敗しました");
-    }
-  };
-
   // 通知クリア
   const handleClearNotification = async (notificationId) => {
     if (!auth.currentUser) return;
@@ -291,114 +201,7 @@ function Home() {
         </Toolbar>
       </AppBar>
 
-      {/* ユーザー検索 */}
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant="h5" gutterBottom sx={{ textAlign: 'center', mb: 3, color: 'white', fontWeight: 'bold' }}>
-          ユーザー検索
-        </Typography>
-        <Box sx={{ mt: 2, mb: 2, display: 'flex', justifyContent: 'center' }}>
-          <TextField
-            label="ユーザー名を入力"
-            value={searchText}
-            onChange={e => setSearchText(e.target.value)}
-            placeholder="displayNameまたはemail@example.com"
-            sx={{ width: 400, mr: 2, backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 1 }}
-          />
-          <Button variant="contained" onClick={handleSearch} size="large">
-            検索
-          </Button>
-        </Box>
-
-        {/* ユーザー検索結果表示 */}
-        {searchResults.length > 0 && (
-          <Card sx={{ mb: 2, backgroundColor: 'rgba(255, 255, 255, 0.9)' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                検索結果 ({searchResults.length}件)
-              </Typography>
-              <List>
-                {searchResults.map(user => (
-                  <ListItem key={user.id} disablePadding>
-                    <ListItemButton onClick={() => handleUserSelect(user)}>
-                      <ListItemText 
-                        primary={user.displayName || user.id} 
-                        secondary={user.email}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-              </List>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* プロフィール表示・フォロー/解除 */}
-        {profile && (
-          <Card sx={{ my: 2, p: 2 }}>
-            <Typography variant="h6">プロフィール</Typography>
-            <Typography>ユーザーID: {profile.id}</Typography>
-            <Typography>表示名: {profile.displayName || "未設定"}</Typography>
-            <Typography>メール: {profile.email}</Typography>
-            <Typography>好み: {profile.preference && profile.preference.join(", ")}</Typography>
-            <Box sx={{ mt: 2 }}>
-              {currentUserId === profile.id ? (
-                <Typography color="text.secondary">自分のプロフィールです</Typography>
-              ) : followStatus.isMutual ? (
-                <Button 
-                  variant="outlined" 
-                  color="error" 
-                  startIcon={<Cancel />} 
-                  onClick={() => handleUnfollow(profile.id)}
-                >
-                  フォロー解除
-                </Button>
-              ) : followStatus.iFollowThem ? (
-                <Button variant="outlined" disabled>
-                  フォローリクエスト送信済み
-                </Button>
-              ) : (
-                <Button 
-                  variant="contained" 
-                  color="primary" 
-                  startIcon={<FollowTheSigns />} 
-                  onClick={() => handleFollowAction(profile.id)}
-                >
-                  フォロー
-                </Button>
-              )}
-              
-              {followStatus.isMutual && (
-                <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
-                  ✓ 相互フォロー中
-                </Typography>
-              )}
-            </Box>
-          </Card>
-        )}
-
-        {/* レビュー表示 */}
-        {reviews.length > 0 && (
-          <Card sx={{ my: 2, p: 2 }}>
-            <Typography variant="h6">レビュー一覧</Typography>
-            <List>
-              {reviews.map((review, idx) => (
-                <ListItem key={idx} divider>
-                  <ListItemText
-                    primary={review.name || review.restaurantId || "店舗"}
-                    secondary={
-                      <>
-                        <Typography>評価: {review.rating}</Typography>
-                        <Typography>コメント: {review.comment}</Typography>
-                        <Typography>投稿日時: {review.createdAt}</Typography>
-                        <Typography>ユーザー: {review.userId}</Typography>
-                      </>
-                    }
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </Card>
-        )}
 
         {/* 通知パネル */}
         {showNotifications && (
@@ -490,7 +293,9 @@ function Home() {
               )}
             </CardContent>
           </Card>
-        )}        {/* Google Map & アクションボタン */}
+        )}
+        
+        {/* Google Map & アクションボタン */}
         <Fade in={true} timeout={1000}>
           <Box>
             <Card

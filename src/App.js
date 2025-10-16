@@ -4,7 +4,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Auth from "./components/Auth";
 import ReviewPost from "./components/reviewPost";
 import EditProfile from "./components/editProfile";
-import PrivateRoute from "./components/PrivateRoute"; // 追加
+import UserIdSearch from "./components/userIdSearch"; 
+import PrivateRoute from "./components/PrivateRoute"; 
 
 function App() {
   return (
@@ -35,6 +36,15 @@ function App() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/userIdSearch"
+          element={
+            <PrivateRoute>
+              <UserIdSearch />
+            </PrivateRoute>
+          }
+        />
+
         {/* 他のルート */}
       </Routes>
     </BrowserRouter>

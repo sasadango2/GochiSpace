@@ -13,7 +13,7 @@ import {
   Home,
   Search,
   Add,
-  Notifications
+  AccountBox,
 } from "@mui/icons-material";
 
 function Footer() {
@@ -26,10 +26,11 @@ function Footer() {
   useEffect(() => {
     const path = location.pathname;
     if (path === "/home") setValue(0);
+    else if (path === "/userIdSearch") setValue(1);
     else if (path === "/reviewpost") setValue(2);
   }, [location.pathname]);
 
-  // ナビゲーション処理
+  // ナビゲーション処理(画面遷移)
   const handleNavigation = (event, newValue) => {
     setValue(newValue);
     
@@ -38,17 +39,13 @@ function Footer() {
         navigate("/home");
         break;
       case 1: // 検索
-        // ユーザー検索機能は後で実装
-        const searchQuery = prompt("検索するユーザー名を入力してください:");
-        if (searchQuery) {
-          console.log("検索:", searchQuery);
-        }
+        navigate("/userIdSearch");
         break;
       case 2: // 投稿
         navigate("/reviewpost");
         break;
-      case 3: // 通知
-        alert("通知機能は準備中です");
+      case 3: // マイプロフィール
+        navigate("/editProfile");
         break;
       default:
         break;
@@ -126,10 +123,10 @@ function Footer() {
           }
         />
         <BottomNavigationAction 
-          label="通知" 
+          label="マイプロフィール" 
           icon={
             <Badge badgeContent={0} color="error">
-              <Notifications />
+              <AccountBox />
             </Badge>
           }
         />

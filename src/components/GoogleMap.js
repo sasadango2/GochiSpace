@@ -1,15 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 import { performMapSearch, detectSearchType, getRestaurantReviews } from '../utils/mapSearchUtils';
+import { getMutualFollowReviewsByCategory, getAllMutualFollowReviews } from '../utils/mutualFollowReviews';
 import { FOOD_CATEGORIES } from '../constants/categories';
 import {
   Box,
   TextField,
   FormControl,
-  InputLabel,
   Select,
   MenuItem,
   Stack,
@@ -56,49 +55,46 @@ function GoogleMap() {
   const [selectedRestaurantName, setSelectedRestaurantName] = useState('');
   const [loadingReviews, setLoadingReviews] = useState(false);
 
-  // レビューデータを取得
+  // レビューデータを取得（相互フォローシステム使用）
   const fetchReviews = useCallback(async () => {
+    if (!user) {
+      setReviews([]);
+      return;
+    }
+
     try {
       let reviewsData = [];
 
-      if (showMyReviews && user) {
-        // ユーザーフィルター時は、where句のみでorderByを避ける
-        const reviewQuery = query(
-          collection(db, 'reviews'),
-          where('userId', '==', user.uid)
-        );
-        const querySnapshot = await getDocs(reviewQuery);
-        reviewsData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        // クライアントサイドでソート
-        reviewsData.sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(0);
-          const dateB = b.createdAt?.toDate?.() || new Date(0);
-          return dateB - dateA;
-        });
+      if (showMyReviews) {
+        // 自分のレビューのみ表示
+        if (categoryFilter) {
+          // カテゴリー指定あり
+          reviewsData = await getMutualFollowReviewsByCategory(user.uid, categoryFilter);
+          // 自分のレビューのみにフィルタリング
+          reviewsData = reviewsData.filter(review => review.userId === user.uid);
+        } else {
+          // 全カテゴリー
+          reviewsData = await getAllMutualFollowReviews(user.uid);
+          // 自分のレビューのみにフィルタリング
+          reviewsData = reviewsData.filter(review => review.userId === user.uid);
+        }
       } else {
-        // 全レビュー取得時はorderByのみ
-        const reviewQuery = query(
-          collection(db, 'reviews'),
-          orderBy('createdAt', 'desc')
-        );
-        const querySnapshot = await getDocs(reviewQuery);
-        reviewsData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        // 相互フォローユーザーのレビューを表示
+        if (categoryFilter) {
+          // カテゴリー指定あり
+          reviewsData = await getMutualFollowReviewsByCategory(user.uid, categoryFilter);
+        } else {
+          // 全カテゴリー
+          reviewsData = await getAllMutualFollowReviews(user.uid);
+        }
       }
 
       setReviews(reviewsData);
     } catch (error) {
       console.error('レビュー取得エラー:', error);
-      // エラーが発生した場合は空配列をセット
       setReviews([]);
     }
-  }, [showMyReviews, user]);
+  }, [showMyReviews, categoryFilter, user]);
 
   // 新しい検索機能
   const handleMapSearch = useCallback(async (searchText) => {
@@ -250,25 +246,20 @@ function GoogleMap() {
   // フィルタリングされたレビューを取得
   const getFilteredReviews = useCallback(() => {
     return reviews.filter(review => {
-      // カテゴリーフィルター
-      if (categoryFilter && review.category !== categoryFilter) {
-        return false;
-      }
-      
-      // 検索フィルター（店名、ユーザーメール、ユーザー表示名）
+      // 検索フィルター（店名、ユーザー表示名）のみ
+      // カテゴリーフィルタリングは既にfetchReviews()で行われている
       if (searchFilter) {
         const searchLower = searchFilter.toLowerCase();
         const matchesRestaurant = review.restaurantName?.toLowerCase().includes(searchLower);
-        const matchesUserEmail = review.userEmail?.toLowerCase().includes(searchLower);
         const matchesUserName = review.userDisplayName?.toLowerCase().includes(searchLower);
-        if (!matchesRestaurant && !matchesUserEmail && !matchesUserName) {
+        if (!matchesRestaurant && !matchesUserName) {
           return false;
         }
       }
       
       return true;
     });
-  }, [reviews, categoryFilter, searchFilter]);
+  }, [reviews, searchFilter]);
 
   // マーカーを更新（検索結果または通常のレビューを表示）
   useEffect(() => {
@@ -483,27 +474,64 @@ function GoogleMap() {
   };
 
   return (
-    <Box>
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column' 
+    }}>
       {/* フィルターコントロール */}
-      <Paper elevation={2} sx={{ p: 2, mb: 2, borderRadius: 2 }}>
-        <Typography variant="h6" gutterBottom color="primary" fontWeight="bold">
-          表示フィルター
-        </Typography>
-        <Stack spacing={2}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+      <Box
+        sx={{
+          background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.05) 100%)',
+          backdropFilter: 'blur(10px)',
+          borderRadius: { xs: 2, sm: 3 },
+          border: '1px solid rgba(102, 126, 234, 0.2)',
+          p: { xs: 1.5, sm: 2 },
+          mb: { xs: 1, sm: 1.5 },
+          boxShadow: '0 4px 20px rgba(102, 126, 234, 0.15)',
+          flexShrink: 0
+        }}
+      >
+        <Stack spacing={{ xs: 1, sm: 1.5 }}>
+          <Stack 
+            direction={{ xs: 'column', sm: 'row' }} 
+            spacing={{ xs: 1, sm: 2 }}
+            alignItems={{ xs: 'stretch', sm: 'center' }}
+          >
             {/* カテゴリーフィルター */}
-            <FormControl sx={{ minWidth: 200 }}>
-              <InputLabel>カテゴリー</InputLabel>
+            <FormControl sx={{ minWidth: { xs: '100%', sm: 180 } }}>
               <Select
                 value={categoryFilter}
-                label="カテゴリー"
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 size="small"
+                displayEmpty
+                sx={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                  borderRadius: 2,
+                  '& .MuiSelect-select': {
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                    py: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  },
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    border: '2px solid rgba(102, 126, 234, 0.3)',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    border: '2px solid rgba(102, 126, 234, 0.5)',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    border: '2px solid #667eea',
+                  }
+                }}
               >
-                <MenuItem value="">すべて</MenuItem>
+                <MenuItem value="" sx={{ fontSize: { xs: '0.8rem', sm: '0.9rem' } }}>
+                  🍽️ すべてのカテゴリー
+                </MenuItem>
                 {FOOD_CATEGORIES?.map((cat) => (
-                  <MenuItem key={cat} value={cat}>
-                    {cat}
+                  <MenuItem key={cat} value={cat} sx={{ fontSize: { xs: '0.8rem', sm: '0.9rem' } }}>
+                    🏷️ {cat}
                   </MenuItem>
                 )) || []}
               </Select>
@@ -512,11 +540,31 @@ function GoogleMap() {
             {/* 検索フィルター */}
             <Box sx={{ position: 'relative', flexGrow: 1 }}>
               <TextField
-                label="店名またはユーザー名で検索 (ユーザー検索は@から始める)"
+                placeholder="🔍 店名・ユーザー名で検索（@でユーザー検索）"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 size="small"
                 fullWidth
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: 2,
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                    '& fieldset': {
+                      border: '2px solid rgba(102, 126, 234, 0.3)',
+                    },
+                    '&:hover fieldset': {
+                      border: '2px solid rgba(102, 126, 234, 0.5)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      border: '2px solid #667eea',
+                    }
+                  },
+                  '& .MuiInputBase-input': {
+                    py: 1,
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' }
+                  }
+                }}
                 InputProps={{
                   startAdornment: (
                     <Tooltip title={
@@ -525,9 +573,11 @@ function GoogleMap() {
                       '検索タイプ'
                     }>
                       <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
-                        {searchType === 'user' ? <Person color="primary" /> : 
-                         searchType === 'restaurant' ? <Restaurant color="secondary" /> : 
-                         <Search color="disabled" />}
+                        {searchType === 'user' ? 
+                          <Person sx={{ color: '#667eea', fontSize: 18 }} /> : 
+                         searchType === 'restaurant' ? 
+                          <Restaurant sx={{ color: '#FE6B8B', fontSize: 18 }} /> : 
+                          <Search sx={{ color: '#999', fontSize: 18 }} />}
                       </Box>
                     </Tooltip>
                   ),
@@ -536,9 +586,13 @@ function GoogleMap() {
                       <IconButton
                         size="small"
                         onClick={handleClearSearch}
-                        sx={{ mr: -1 }}
+                        sx={{ 
+                          mr: -1,
+                          color: '#667eea',
+                          '&:hover': { backgroundColor: 'rgba(102, 126, 234, 0.1)' }
+                        }}
                       >
-                        <Clear />
+                        <Clear fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   )
@@ -547,75 +601,136 @@ function GoogleMap() {
               
               {/* 検索状態の表示 */}
               {isSearching && (
-                <Typography variant="caption" sx={{ color: 'primary.main', mt: 0.5, display: 'block' }}>
-                  検索中...
-                </Typography>
+                <Box sx={{ 
+                  mt: 0.5, 
+                  p: 0.5, 
+                  borderRadius: 1, 
+                  backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                  border: '1px solid rgba(102, 126, 234, 0.3)'
+                }}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: '#667eea', 
+                      fontWeight: 500,
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                    }}
+                  >
+                    🔄 検索中...
+                  </Typography>
+                </Box>
               )}
               
               {searchMode && !isSearching && (
-                <Typography variant="caption" sx={{ color: 'success.main', mt: 0.5, display: 'block' }}>
-                  {searchType === 'user' ? 'ユーザーレビュー' : '飲食店'}: {searchResults.length}件見つかりました
-                </Typography>
+                <Box sx={{ 
+                  mt: 0.5, 
+                  p: 0.5, 
+                  borderRadius: 1, 
+                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                  border: '1px solid rgba(76, 175, 80, 0.3)'
+                }}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: '#4caf50', 
+                      fontWeight: 500,
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                    }}
+                  >
+                    ✅ {searchType === 'user' ? 'ユーザーレビュー' : '飲食店'}: {searchResults.length}件見つかりました
+                  </Typography>
+                </Box>
               )}
             </Box>
           </Stack>
 
-          <Box>
-            {/* 自分の投稿のみ表示 */}
+          {/* 自分の投稿のみ表示とアクティブフィルター */}
+          <Stack 
+            direction={{ xs: 'column', sm: 'row' }} 
+            spacing={{ xs: 1, sm: 2 }} 
+            alignItems={{ xs: 'flex-start', sm: 'center' }}
+          >
             <FormControlLabel
               control={
                 <Switch
                   checked={showMyReviews}
                   onChange={(e) => setShowMyReviews(e.target.checked)}
                   disabled={!user}
+                  size="small"
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': {
+                      color: '#667eea',
+                    },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                      backgroundColor: '#667eea',
+                    },
+                  }}
                 />
               }
-              label="自分の投稿のみ表示"
+              label={
+                <Typography sx={{ 
+                  fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                  fontWeight: 500,
+                  color: '#333'
+                }}>
+                  👤 自分の投稿のみ
+                </Typography>
+              }
             />
             
             {/* アクティブフィルターの表示 */}
-            <Box sx={{ mt: 1 }}>
-              {(categoryFilter || searchFilter || showMyReviews || searchMode) && (
-                <Stack direction="row" spacing={1} flexWrap="wrap">
-                  {searchMode && (
-                    <Chip
-                      label={`${searchType === 'user' ? 'ユーザー検索' : '飲食店検索'}: ${searchResults.length}件`}
-                      onDelete={handleClearSearch}
-                      size="small"
-                      color="secondary"
-                      icon={searchType === 'user' ? <Person /> : <Restaurant />}
-                    />
-                  )}
-                  {categoryFilter && (
-                    <Chip
-                      label={`カテゴリー: ${categoryFilter}`}
-                      onDelete={() => setCategoryFilter('')}
-                      size="small"
-                      color="primary"
-                    />
-                  )}
-                  {searchFilter && !searchMode && (
-                    <Chip
-                      label={`検索: ${searchFilter}`}
-                      onDelete={() => setSearchFilter('')}
-                      size="small"
-                      color="primary"
-                    />
-                  )}
-                  {showMyReviews && (
-                    <Chip
-                      label="自分の投稿のみ"
-                      onDelete={() => setShowMyReviews(false)}
-                      size="small"
-                      color="primary"
-                    />
-                  )}
-                </Stack>
-              )}
-            </Box>
-          </Box>
+            {(categoryFilter || searchFilter || showMyReviews || searchMode) && (
+              <Box sx={{ 
+                flex: 1,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 0.5,
+                alignItems: 'center'
+              }}>
+                {searchMode && (
+                  <Chip
+                    label={`${searchType === 'user' ? '👤' : '🍽️'} ${searchResults.length}件`}
+                    onDelete={handleClearSearch}
+                    size="small"
+                    sx={{
+                      background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
+                      color: 'white',
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                      '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.8)' }
+                    }}
+                  />
+                )}
+                {categoryFilter && (
+                  <Chip
+                    label={`🏷️ ${categoryFilter}`}
+                    onDelete={() => setCategoryFilter('')}
+                    size="small"
+                    sx={{
+                      background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)',
+                      color: 'white',
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                      '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.8)' }
+                    }}
+                  />
+                )}
+                {searchFilter && !searchMode && (
+                  <Chip
+                    label={`🔍 ${searchFilter}`}
+                    onDelete={() => setSearchFilter('')}
+                    size="small"
+                    sx={{
+                      background: 'linear-gradient(45deg, #4caf50 30%, #8bc34a 90%)',
+                      color: 'white',
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                      '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.8)' }
+                    }}
+                  />
+                )}
+              </Box>
+            )}
+          </Stack>
         </Stack>
-      </Paper>
+      </Box>
 
       {/* マップ */}
       <Box
@@ -623,19 +738,41 @@ function GoogleMap() {
         ref={mapRef}
         sx={{
           width: '100%',
-          height: '500px',
-          borderRadius: 2,
+          flex: 1,
+          minHeight: { xs: '300px', sm: '400px' },
+          borderRadius: { xs: 1, sm: 2 },
           overflow: 'hidden',
-          border: '2px solid #e0e0e0'
+          border: { xs: '1px solid #e0e0e0', sm: '2px solid #e0e0e0' },
+          touchAction: 'manipulation' // モバイルタッチ最適化
         }}
       />
 
       {/* 統計情報 */}
-      <Paper elevation={2} sx={{ p: 2, mt: 2, borderRadius: 2 }}>
-        <Typography variant="body2" color="text.secondary">
-          表示中のレビュー数: {getFilteredReviews().length}件 / 全{reviews.length}件
+      <Box sx={{ 
+        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)',
+        backdropFilter: 'blur(5px)',
+        border: '1px solid rgba(102, 126, 234, 0.15)',
+        borderRadius: { xs: 1.5, sm: 2 },
+        p: { xs: 1, sm: 1.5 }, 
+        mt: { xs: 0.5, sm: 1 },
+        textAlign: 'center',
+        flexShrink: 0
+      }}>
+        <Typography 
+          variant="body2" 
+          sx={{
+            fontSize: { xs: '0.75rem', sm: '0.85rem' },
+            fontWeight: 500,
+            color: '#667eea',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 1
+          }}
+        >
+          📊 表示中: {getFilteredReviews().length}件 / 全{reviews.length}件のレビュー
         </Typography>
-      </Paper>
+      </Box>
 
       {/* レビュー詳細ダイアログ */}
       <Dialog
@@ -643,8 +780,13 @@ function GoogleMap() {
         onClose={handleCloseReviewDialog}
         maxWidth="md"
         fullWidth
+        fullScreen={{ xs: true, sm: false }}
         PaperProps={{
-          sx: { maxHeight: '80vh' }
+          sx: { 
+            maxHeight: { xs: '100vh', sm: '80vh' },
+            m: { xs: 0, sm: 1 },
+            borderRadius: { xs: 0, sm: 2 }
+          }
         }}
       >
         <DialogTitle>

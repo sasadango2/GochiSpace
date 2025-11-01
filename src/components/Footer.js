@@ -76,7 +76,9 @@ function Footer() {
         transform: 'translateZ(0)',
         WebkitTransform: 'translateZ(0)',
         WebkitBackfaceVisibility: 'hidden',
-        backfaceVisibility: 'hidden'
+        backfaceVisibility: 'hidden',
+        borderTopLeftRadius: { xs: 12, sm: 0 },
+        borderTopRightRadius: { xs: 12, sm: 0 }
       }} 
       elevation={3}
     >
@@ -85,23 +87,30 @@ function Footer() {
         onChange={handleNavigation}
         showLabels
         sx={{
-          height: 70,
+          height: { xs: 64, sm: 70 },
+          borderTopLeftRadius: { xs: 12, sm: 0 },
+          borderTopRightRadius: { xs: 12, sm: 0 },
           '& .MuiBottomNavigationAction-root': {
             minWidth: 'auto',
-            padding: '6px 0',
+            padding: { xs: '4px 0', sm: '6px 0' },
+            fontSize: { xs: '0.7rem', sm: '0.8rem' },
             '&.Mui-selected': {
               color: '#667eea'
+            },
+            '& .MuiBottomNavigationAction-label': {
+              fontSize: { xs: '0.7rem', sm: '0.75rem' },
+              marginTop: { xs: 2, sm: 4 }
             }
           }
         }}
       >
         <BottomNavigationAction 
           label="ホーム" 
-          icon={<Home />}
+          icon={<Home sx={{ fontSize: { xs: 20, sm: 24 } }} />}
         />
         <BottomNavigationAction 
           label="検索" 
-          icon={<Search />}
+          icon={<Search sx={{ fontSize: { xs: 20, sm: 24 } }} />}
         />
         <BottomNavigationAction 
           label="投稿" 
@@ -113,12 +122,12 @@ function Footer() {
                 justifyContent: 'center',
                 backgroundColor: '#667eea',
                 borderRadius: '50%',
-                width: 40,
-                height: 40,
+                width: { xs: 36, sm: 40 },
+                height: { xs: 36, sm: 40 },
                 color: 'white'
               }}
             >
-              <Add />
+              <Add sx={{ fontSize: { xs: 18, sm: 20 } }} />
             </Box>
           }
         />
@@ -126,7 +135,7 @@ function Footer() {
           label="マイプロフィール" 
           icon={
             <Badge badgeContent={0} color="error">
-              <AccountBox />
+              <AccountBox sx={{ fontSize: { xs: 20, sm: 24 } }} />
             </Badge>
           }
         />

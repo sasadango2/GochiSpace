@@ -13,8 +13,8 @@ import {
   collection, 
   getDocs, 
   onSnapshot,
-  serverTimestamp,
-  writeBatch
+  writeBatch,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
 
@@ -126,7 +126,7 @@ export const saveReviewData = async (userId, restaurantData, reviewData) => {
       comment: reviewData.comment,
       rating: reviewData.rating,
       category: reviewData.category,
-      userDisplayName: reviewData.userDisplayName,
+      displayName: reviewData.displayName,
       userId: userId,
       createdAt: "", // 空文字列として保存
       
@@ -160,7 +160,7 @@ export const saveReviewData = async (userId, restaurantData, reviewData) => {
       [`reviews.${userId}`]: {
         comment: reviewData.comment,
         rating: reviewData.rating,
-        userDisplayName: reviewData.userDisplayName,
+        displayName: reviewData.displayName,
         userId: userId,
         createdAt: "" // 空文字列として保存
       }
@@ -283,7 +283,7 @@ export const updateUserProfile = async (userId, profileData) => {
 
     // 2. displayNameが変更された場合、レビューのdisplayNameも一括更新
     if (profileData.displayName) {
-      await updateUserDisplayNameInReviews(userId, profileData.displayName);
+      await updateDisplayNameInReviews(userId, profileData.displayName);
     }
 
     console.log('✅ ユーザープロフィール更新完了 (クライアントサイド)');
@@ -303,7 +303,7 @@ export const updateUserProfile = async (userId, profileData) => {
 /**
  * displayNameの一括更新（バッチ処理）
  */
-export const updateUserDisplayNameInReviews = async (userId, newDisplayName) => {
+export const updateDisplayNameInReviews = async (userId, newDisplayName) => {
   try {
     console.log(`🔄 displayName一括更新開始: ${userId} → ${newDisplayName}`);
     
@@ -423,4 +423,82 @@ export const setupRestaurantSyncListener = (placeId, onUpdate) => {
   );
   
   return unsubscribe;
+};
+
+/**
+ * 既存のレビューデータのdisplayNameを修正する関数
+ * userIdからFirestoreの正しいdisplayNameに更新
+ */
+export const fixExistingDisplayNames = async () => {
+  try {
+    console.log("🔧 既存のdisplayName修正を開始...");
+    
+    const batch = writeBatch(db);
+    let updateCount = 0;
+    
+    // 1. 全ユーザーを取得
+    const usersSnapshot = await getDocs(collection(db, 'users'));
+    
+    for (const userDoc of usersSnapshot.docs) {
+      const userId = userDoc.id;
+      const userData = userDoc.data();
+      const correctDisplayName = userData.displayName;
+      
+      if (!correctDisplayName) {
+        console.log(`⚠️  ユーザー ${userId} にdisplayNameがありません`);
+        continue;
+      }
+      
+      // 2. 各ユーザーのpostRestaurantInfoを更新
+      const userReviewsSnapshot = await getDocs(
+        collection(db, 'users', userId, 'postRestaurantInfo')
+      );
+      
+      for (const reviewDoc of userReviewsSnapshot.docs) {
+        const reviewData = reviewDoc.data();
+        
+        // displayNameがuserIdと異なる場合（正しい表示名でない場合）のみ更新
+        if (reviewData.displayName !== correctDisplayName) {
+          batch.update(reviewDoc.ref, {
+            displayName: correctDisplayName
+          });
+          updateCount++;
+          console.log(`📝 ${userId}のレビュー更新: ${reviewData.displayName} → ${correctDisplayName}`);
+        }
+      }
+      
+      // 3. restaurantsコレクションのレビューも更新
+      const restaurantsSnapshot = await getDocs(collection(db, 'restaurants'));
+      
+      for (const restaurantDoc of restaurantsSnapshot.docs) {
+        const restaurantData = restaurantDoc.data();
+        
+        if (restaurantData.reviews && restaurantData.reviews[userId]) {
+          const reviewInRestaurant = restaurantData.reviews[userId];
+          
+          if (reviewInRestaurant.displayName !== correctDisplayName) {
+            batch.update(restaurantDoc.ref, {
+              [`reviews.${userId}.displayName`]: correctDisplayName
+            });
+            updateCount++;
+            console.log(`🏪 レストラン ${restaurantDoc.id} の ${userId} レビュー更新`);
+          }
+        }
+      }
+    }
+    
+    // バッチ実行
+    if (updateCount > 0) {
+      await batch.commit();
+      console.log(`✅ displayName修正完了: ${updateCount}件更新`);
+      return { success: true, updatedCount: updateCount };
+    } else {
+      console.log("ℹ️  更新が必要なデータがありませんでした");
+      return { success: true, updatedCount: 0 };
+    }
+    
+  } catch (error) {
+    console.error("❌ displayName修正エラー:", error);
+    return { success: false, error: error.message };
+  }
 };

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { saveReviewData } from "../utils/dataSync";
 import { FOOD_CATEGORIES } from "../constants/categories";
 import {
@@ -53,6 +54,7 @@ function ReviewPost() {
   const [comment, setComment] = useState("");
   const [rating, setRating] = useState(0);
   const [category, setCategory] = useState("");
+  const [userDisplayName, setUserDisplayName] = useState("");
 
   
   // Google Places API関連
@@ -63,6 +65,28 @@ function ReviewPost() {
   // 投稿状態
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // ユーザーの表示名を取得
+  useEffect(() => {
+    const fetchUserDisplayName = async () => {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUserDisplayName(userData.displayName || user.email.split('@')[0] || "user");
+          } else {
+            setUserDisplayName(user.email.split('@')[0] || "user");
+          }
+        } catch (error) {
+          console.error("Error fetching user display name:", error);
+          setUserDisplayName(user.email.split('@')[0] || "user");
+        }
+      }
+    };
+
+    fetchUserDisplayName();
+  }, [user]);
 
   // Google Maps API の初期化
   useEffect(() => {
@@ -371,7 +395,7 @@ function ReviewPost() {
         isDeleted: false,
         
         // 追加情報
-        userDisplayName: user.displayName || user.email.split('@')[0] || "user"
+        displayName: userDisplayName || user.email.split('@')[0] || "user"
       };
 
       // Firestore保存前の最終データ検証

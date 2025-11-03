@@ -43,6 +43,7 @@ function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userId, setUserId] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -69,7 +70,7 @@ function Auth() {
     
     try {
       // バリデーション
-      if (!email || !password || !userId) {
+      if (!email || !password || !userId || !displayName) {
         throw new Error("全ての項目を入力してください");
       }
       
@@ -81,6 +82,10 @@ function Auth() {
         throw new Error("ユーザーIDは3文字以上で入力してください");
       }
 
+      if (displayName.length < 1) {
+        throw new Error("表示名を入力してください");
+      }
+
       console.log("🚀 ユーザー登録開始");
 
       // Firebase Authenticationでユーザー作成
@@ -89,13 +94,13 @@ function Auth() {
 
       // プロフィール更新
       await updateProfile(user, {
-        displayName: userId
+        displayName: displayName
       });
 
       // Firestoreにユーザー情報保存
       const userData = {
         userId: userId,
-        displayName: userId, // displayNameとしてuserIdを使用
+        displayName: displayName,
         firebaseUid: user.uid,
         email: email,
         emailVerified: false,
@@ -173,6 +178,7 @@ function Auth() {
     setEmail("");
     setPassword("");
     setUserId("");
+    setDisplayName("");
     setSelectedCategories([]);
     setError("");
     setMessage("");
@@ -273,6 +279,25 @@ function Auth() {
                         startAdornment: (
                           <InputAdornment position="start">
                             <Person color="action" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                    />
+                  )}
+
+                  {/* 表示名（登録時のみ） */}
+                  {isRegister && (
+                    <TextField
+                      label="表示名"
+                      fullWidth
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="他のユーザーに表示される名前"
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonAdd color="action" />
                           </InputAdornment>
                         ),
                       }}

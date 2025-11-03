@@ -159,7 +159,7 @@ export const sendFollowRequest = async (myUserId, targetUserId) => {
     const notification = {
       type: "follow_request",
       fromUserId: myUserId,
-      fromUserDisplayName: myDisplayName,
+      fromDisplayName: myDisplayName,
       fromUserEmail: myUserData.email || "",
       message: `${myDisplayName}さんからフォローリクエストが届きました`,
       read: false,
@@ -246,7 +246,7 @@ export const acceptFollowRequest = async (myUserId, fromUserId) => {
     const acceptNotification = {
       type: "follow_accepted",
       fromUserId: myUserId,
-      fromUserDisplayName: myDisplayName,
+      fromDisplayName: myDisplayName,
       fromUserEmail: myUserData.email || "",
       message: `${myDisplayName}さんがあなたのフォローリクエストを承認しました！相互フォローになりました🎉`,
       read: false,
@@ -303,7 +303,7 @@ export const unfollowUser = async (myUserId, targetUserId) => {
     const unfollowNotification = {
       type: "unfollowed",
       fromUserId: myUserId,
-      fromUserDisplayName: myDisplayName,
+      fromDisplayName: myDisplayName,
       message: `${myDisplayName}さんがフォローを解除しました`,
       read: false,
       createdAt: new Date(),

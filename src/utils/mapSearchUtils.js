@@ -153,7 +153,7 @@ export const getRestaurantReviews = async (restaurantLocation, currentUserId) =>
             allReviews.push({
               id: doc.id,
               userId: userId,
-              userDisplayName: userInfo?.displayName || userInfo?.email || 'ユーザー',
+              displayName: userInfo?.displayName || userInfo?.email || 'ユーザー',
               userEmail: userInfo?.email,
               ...reviewData
             });

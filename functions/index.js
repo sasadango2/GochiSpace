@@ -107,7 +107,7 @@ exports.syncReviewsOnProfileUpdate = functions.firestore
       console.log(`👤 プロフィール更新検出: User ${userId}, displayName: ${beforeData.displayName} → ${afterData.displayName}`);
       
       try {
-        await updateUserDisplayNameInReviews(userId, afterData.displayName);
+        await updateDisplayNameInReviews(userId, afterData.displayName);
         console.log(`✅ ユーザー ${userId} のレビュー内displayName更新完了`);
       } catch (error) {
         console.error(`❌ プロフィール同期エラー: ${error.message}`);
@@ -223,7 +223,7 @@ function calculateRestaurantStats(reviews) {
   
   const reviewers = reviews.map(review => ({
     userId: review.userId,
-    displayName: review.userDisplayName || review.userEmail || 'Unknown'
+    displayName: review.displayName || review.userEmail || 'Unknown'
   }));
   
   const categories = [...new Set(reviews.map(review => review.category).filter(Boolean))];
@@ -246,7 +246,7 @@ function calculateRestaurantStats(reviews) {
 /**
  * ユーザーのdisplayName変更を全レビューに反映
  */
-async function updateUserDisplayNameInReviews(userId, newDisplayName) {
+async function updateDisplayNameInReviews(userId, newDisplayName) {
   try {
     console.log(`👤 ユーザー ${userId} のdisplayName更新開始: ${newDisplayName}`);
     
@@ -261,7 +261,7 @@ async function updateUserDisplayNameInReviews(userId, newDisplayName) {
     reviewsSnapshot.docs.forEach(reviewDoc => {
       const reviewRef = reviewDoc.ref;
       batch.update(reviewRef, {
-        userDisplayName: newDisplayName,
+        displayName: newDisplayName,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
       

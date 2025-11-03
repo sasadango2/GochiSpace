@@ -251,7 +251,7 @@ function GoogleMap() {
       if (searchFilter) {
         const searchLower = searchFilter.toLowerCase();
         const matchesRestaurant = review.restaurantName?.toLowerCase().includes(searchLower);
-        const matchesUserName = review.userDisplayName?.toLowerCase().includes(searchLower);
+        const matchesUserName = review.displayName?.toLowerCase().includes(searchLower);
         if (!matchesRestaurant && !matchesUserName) {
           return false;
         }
@@ -430,7 +430,7 @@ function GoogleMap() {
     
     let reviewsHtml = '';
     sortedReviews.forEach((review, index) => {
-      const userName = review.userDisplayName || review.userEmail?.split('@')[0] || 'ユーザー';
+      const userName = review.displayName || review.userEmail?.split('@')[0] || 'ユーザー';
       const createDate = review.createdAt?.toDate?.()?.toLocaleDateString() || '日付不明';
       
       reviewsHtml += `
@@ -820,13 +820,13 @@ function GoogleMap() {
                 <Paper key={review.id} elevation={1} sx={{ p: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                     <Avatar sx={{ bgcolor: 'primary.main' }}>
-                      {(review.userDisplayName || review.userEmail || 'U').charAt(0).toUpperCase()}
+                      {(review.displayName || review.userEmail || 'U').charAt(0).toUpperCase()}
                     </Avatar>
                     
                     <Box sx={{ flexGrow: 1 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                         <Typography variant="subtitle1" fontWeight="bold">
-                          {review.userDisplayName || review.userEmail || 'ユーザー'}
+                          {review.displayName || review.userEmail || 'ユーザー'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {review.createdAt?.toDate?.()?.toLocaleDateString() || '日付不明'}

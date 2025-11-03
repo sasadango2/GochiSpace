@@ -34,7 +34,7 @@ import Footer from "./Footer";
 
 function Home() {
   const navigate = useNavigate();
-  const [userDisplayName, setUserDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -86,23 +86,23 @@ function Home() {
         notificationSystem.cleanupExpiredNotifications(user.uid);
         
         // ユーザーのディスプレイネームを取得
-        const fetchUserDisplayName = async () => {
+        const fetchDisplayName = async () => {
           try {
             const userDoc = await getDoc(doc(db, "users", user.uid));
             if (userDoc.exists()) {
-              setUserDisplayName(userDoc.data().displayName || "");
+              setDisplayName(userDoc.data().displayName || "");
             }
           } catch (error) {
             console.error("Error fetching user display name:", error);
           }
         };
-        fetchUserDisplayName();
+        fetchDisplayName();
       } else {
         // ユーザーがログアウトした場合のクリーンアップ
         setCurrentUserId("");
         setNotifications([]);
         setUnreadCount(0);
-        setUserDisplayName("");
+        setDisplayName("");
         if (notificationWatcher.current) {
           notificationWatcher.current();
           notificationWatcher.current = null;
@@ -200,7 +200,7 @@ function Home() {
           >
             GochiSpace
           </Typography>
-          {userDisplayName && (
+          {displayName && (
             <Typography 
               variant="body2" 
               sx={{ 
@@ -209,7 +209,7 @@ function Home() {
                 display: { xs: 'none', sm: 'block' }
               }}
             >
-              {userDisplayName}
+              {displayName}
             </Typography>
           )}
           <IconButton 
@@ -319,7 +319,7 @@ function Home() {
                                 color="text.secondary"
                                 sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
                               >
-                                {notification.fromUserDisplayName && `送信者: ${notification.fromUserDisplayName}`}
+                                {notification.fromDisplayName && `送信者: ${notification.fromDisplayName}`}
                               </Typography>
                               <br />
                               <Typography 

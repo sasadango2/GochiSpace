@@ -31,8 +31,7 @@ import {
   ListItemButton,
   Paper,
   CircularProgress,
-  Alert,
-  Chip
+  Alert
 } from "@mui/material";
 import {
   ArrowBack,
@@ -545,13 +544,6 @@ function ReviewPost() {
                                       primary={restaurant.name}
                                       secondary={restaurant.formatted_address}
                                     />
-                                    {restaurant.rating && (
-                                      <Chip 
-                                        label={`★${restaurant.rating}`} 
-                                        size="small" 
-                                        color="primary"
-                                      />
-                                    )}
                                   </ListItemButton>
                                 </ListItem>
                               ))}

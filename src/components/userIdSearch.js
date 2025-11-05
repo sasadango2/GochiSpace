@@ -254,7 +254,7 @@ function UserIdSearch() {
                         <ListItemButton onClick={() => handleUserSelect(searchUser)}>
                           <ListItemText 
                             primary={searchUser.displayName || searchUser.id} 
-                            secondary={searchUser.email}
+                            secondary={searchUser.userId}
                           />
                         </ListItemButton>
                       </ListItem>
@@ -268,10 +268,9 @@ function UserIdSearch() {
             {profile && (
               <Card sx={{ my: 2, p: 2 }}>
                 <Typography variant="h6">プロフィール</Typography>
-                <Typography>ユーザーID: {profile.id}</Typography>
+                <Typography>ユーザーID: {profile.userId || profile.id}</Typography>
                 <Typography>表示名: {profile.displayName || "未設定"}</Typography>
-                <Typography>メール: {profile.email}</Typography>
-                <Typography>好み: {profile.preference && profile.preference.join(", ")}</Typography>
+                <Typography>好み: {profile.preferences && profile.preferences.join(", ")}</Typography>
                 <Box sx={{ mt: 2 }}>
                   {currentUserId === profile.id ? (
                     <Typography color="text.secondary">自分のプロフィールです</Typography>

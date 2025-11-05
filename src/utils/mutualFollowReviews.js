@@ -47,7 +47,7 @@ export const getMutualFollowReviewsByCategory = async (currentUserId, category) 
  * @param {string} currentUserId - 現在のユーザーID
  * @returns {Promise<Array<string>>} 相互フォローユーザーIDの配列
  */
-const getMutualFollowUsers = async (currentUserId) => {
+export const getMutualFollowUsers = async (currentUserId) => {
   try {
     // 自分がフォローしているユーザーを取得
     const myFollowsRef = collection(db, 'users', currentUserId, 'follows');

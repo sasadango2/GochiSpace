@@ -34,6 +34,7 @@ import {
 } from "../utils/firebaseTest";
 import * as notificationSystem from "../utils/notificationSystem";
 import Footer from "./Footer";
+import FollowExchangeUserList from "./followExchangeUserList";
 
 function UserIdSearch() {
   const navigate = useNavigate();
@@ -188,6 +189,8 @@ function UserIdSearch() {
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Fade in={true} timeout={1000}>
           <Box>
+            {/* 相互フォローユーザー一覧ボタン */}
+            <FollowExchangeUserList onUserSelect={handleUserSelect} />
             {/* 検索フォーム */}
             <Card
               elevation={12}
@@ -208,7 +211,6 @@ function UserIdSearch() {
                 
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                   <TextField
-                    label="ユーザー名を入力"
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                     onKeyPress={handleKeyPress}

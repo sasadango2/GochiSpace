@@ -580,10 +580,15 @@ function ReviewPost() {
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     placeholder="お店の感想を教えてください..."
+                    helperText="※個人が特定できる内容は書き込まないでください。"
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         borderRadius: 2,
-                      }
+                      },
+                      '& .MuiFormHelperText-root': {
+                        fontSize: '0.68rem',  // 👈 フォントサイズ変更ここ！
+                        color: 'red', // テーマに合わせた色
+                      },
                     }}
                   />
 

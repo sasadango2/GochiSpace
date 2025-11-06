@@ -24,11 +24,11 @@ import {
 } from "@mui/material";
 import {
   Logout,
-  Restaurant,
   Notifications,
   CheckCircle,
   Pending
 } from "@mui/icons-material";
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import * as notificationSystem from "../utils/notificationSystem";
 import Footer from "./Footer";
 
@@ -181,54 +181,62 @@ function Home() {
         }}
       >
         <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
-          <Avatar sx={{ 
-            mr: { xs: 1, sm: 2 }, 
-            bgcolor: 'rgba(255, 255, 255, 0.2)',
-            width: { xs: 32, sm: 40 },
-            height: { xs: 32, sm: 40 }
-          }}>
-            <Restaurant fontSize="small" />
-          </Avatar>
-          <Typography 
-            variant="h6" 
-            component="div" 
-            sx={{ 
-              flexGrow: 1, 
+          <Typography
+            variant="h6"
+            component="div"
+            sx={{
               fontWeight: 'bold',
-              fontSize: { xs: '1.1rem', sm: '1.25rem' }
+              fontSize: { xs: '1.05rem', sm: '1.25rem' }
             }}
           >
             GochiSpace
           </Typography>
-          {displayName && (
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                mr: { xs: 1, sm: 2 }, 
-                fontWeight: 'medium',
-                display: { xs: 'none', sm: 'block' }
+
+          {/* displayName とヘッダーアイコン群を右側に配置 */}
+          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+            {displayName && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                <Avatar sx={{ 
+                  bgcolor: 'transparent',
+                  border: 'none',
+                  boxShadow: 'none',
+                  width: { xs: 28, sm: 36 },
+                  height: { xs: 28, sm: 36 },
+                  fontSize: { xs: '0.85rem', sm: '1rem' }
+                }}>
+                  <PersonOutlineIcon fontSize="small" sx={{ color: 'rgba(255,255,255,0.95)' }} />
+                </Avatar>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontSize: { xs: '0.78rem', sm: '0.9rem' },
+                    color: 'rgba(255,255,255,0.95)',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {displayName}
+                </Typography>
+              </Box>
+            )}
+
+            <IconButton 
+              color="inherit" 
+              size="small"
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                if (!showNotifications) {
+                  notificationSystem.cleanupExpiredNotifications(currentUserId);
+                }
               }}
             >
-              {displayName}
-            </Typography>
-          )}
-          <IconButton 
-            color="inherit" 
-            size="small"
-            onClick={() => {
-              setShowNotifications(!showNotifications);
-              if (!showNotifications) {
-                notificationSystem.cleanupExpiredNotifications(currentUserId);
-              }
-            }}
-          >
-            <Badge badgeContent={unreadCount} color="error">
-              <Notifications fontSize="small" />
-            </Badge>
-          </IconButton>
-          <IconButton color="inherit" onClick={logout} size="small">
-            <Logout fontSize="small" />
-          </IconButton>
+              <Badge badgeContent={unreadCount} color="error">
+                <Notifications fontSize="small" />
+              </Badge>
+            </IconButton>
+            <IconButton color="inherit" onClick={logout} size="small">
+              <Logout fontSize="small" />
+            </IconButton>
+          </Box>
         </Toolbar>
       </AppBar>
 

@@ -83,7 +83,7 @@ function Auth() {
       }
 
       if (displayName.length < 1) {
-        throw new Error("表示名を入力してください");
+        throw new Error("ニックネームを入力してください");
       }
 
       console.log("🚀 ユーザー登録開始");
@@ -289,18 +289,25 @@ function Auth() {
                   {/* 表示名（登録時のみ） */}
                   {isRegister && (
                     <TextField
-                      label="表示名"
+                      label="ニックネーム"
                       fullWidth
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="他のユーザーに表示される名前"
+                      helperText="※個人が特定できる名前は避けてください。"
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
                             <PersonAdd color="action" />
                           </InputAdornment>
                         ),
+                        sx: {
+                          '& input::placeholder': {
+                            fontSize: '0.875rem'
+                          }
+                        }
                       }}
+                      FormHelperTextProps={{ sx: { fontSize: '0.72rem', color: 'red' } }}
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                     />
                   )}

@@ -109,7 +109,7 @@ function Footer() {
           icon={<Home sx={{ fontSize: { xs: 20, sm: 24 } }} />}
         />
         <BottomNavigationAction 
-          label="検索" 
+          label="ユーザー検索" 
           icon={<Search sx={{ fontSize: { xs: 20, sm: 24 } }} />}
         />
         <BottomNavigationAction 

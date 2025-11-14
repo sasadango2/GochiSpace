@@ -395,7 +395,7 @@ function EditProfile() {
                               fontWeight: 500
                             }}
                           >
-                            表示名
+                            ニックネーム
                           </Typography>
                           <Typography 
                             variant="h6" 
@@ -431,7 +431,7 @@ function EditProfile() {
                         textAlign: 'center'
                       }}
                     >
-                      表示名の設定
+                      ニックネームの設定
                     </Typography>
                     <TextField
                       fullWidth

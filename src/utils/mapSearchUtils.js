@@ -185,30 +185,40 @@ export const getRestaurantReviews = async (restaurantLocation, currentUserId) =>
  */
 export const searchRestaurantsByUser = async (searchText, currentUserId, options = {}) => {
   try {
-    const { limit = 50 } = options;
-    
+    const { limit = 50, byId = false } = options;
+
     if (!searchText.trim() || !currentUserId) {
       console.log('検索テキストまたはユーザーIDが不正です');
       return [];
     }
 
     const searchLower = searchText.toLowerCase();
-    console.log(`ユーザー検索開始: "${searchText}", currentUserId: ${currentUserId}`);
-    
+    console.log(`ユーザー検索開始: "${searchText}", currentUserId: ${currentUserId}, byId: ${byId}`);
+
     // 1. 相互フォローユーザーを取得
     const mutualUsers = await getMutualFollowUsers(currentUserId);
     console.log(`相互フォローユーザー取得結果: ${mutualUsers.length}人`);
-    
+
     // デバッグ: 相互フォローユーザーの詳細を表示
     mutualUsers.forEach(user => {
       console.log(`相互フォローユーザー: ${user.displayName || user.email} (ID: ${user.id})`);
     });
-    
+
     // 2. 検索対象ユーザーを相互フォロー関係から絞り込み
-    const matchingUsers = mutualUsers.filter(user => 
-      user.displayName?.toLowerCase().includes(searchLower) ||
-      user.email?.toLowerCase().includes(searchLower)
-    );
+    let matchingUsers;
+    if (byId) {
+      // @で始まる検索は userId（ドキュメントID または user.userId フィールド）で探す
+      matchingUsers = mutualUsers.filter(user => {
+        const docId = (user.id || '').toString().toLowerCase();
+        const userIdField = (user.userId || '').toString().toLowerCase();
+        return docId.includes(searchLower) || userIdField.includes(searchLower);
+      });
+    } else {
+      matchingUsers = mutualUsers.filter(user => 
+        (user.displayName || '').toLowerCase().includes(searchLower) ||
+        (user.email || '').toLowerCase().includes(searchLower)
+      );
+    }
 
     if (matchingUsers.length === 0) {
       console.log('該当する相互フォローユーザーが見つかりませんでした');
@@ -237,10 +247,10 @@ export const searchRestaurantsByUser = async (searchText, currentUserId, options
 
     console.log(`該当相互フォローユーザー: ${matchingUsers.length}人`);
     matchingUsers.forEach(user => {
-      console.log(`該当ユーザー: ${user.displayName || user.email} (ID: ${user.id})`);
+      console.log(`該当ユーザー: ${user.displayName || user.email || user.id} (ID: ${user.id})`);
     });
 
-    // 3. 各ユーザーのpostRestaurantInfoサブコレクションからレビューを取得
+  // 3. 各ユーザーのpostRestaurantInfoサブコレクションからレビューを取得
     const allRestaurants = [];
     const restaurantMap = new Map(); // 重複除去用
 
@@ -505,7 +515,9 @@ export const performMapSearch = async (searchText, currentUserId, options = {}) 
         return await searchRestaurantsByUserDebug(userText.replace(/debug/gi, '').trim(), currentUserId, options);
       } else {
         console.log('通常モードで検索実行');
-        return await searchRestaurantsByUser(userText, currentUserId, options);
+        // if original searchText started with @, pass byId flag so search uses userId matching
+        const byIdFlag = searchText.startsWith('@');
+        return await searchRestaurantsByUser(userText, currentUserId, { ...options, byId: byIdFlag });
       }
     
     case 'restaurant':

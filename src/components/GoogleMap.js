@@ -3,7 +3,14 @@ import { Loader } from '@googlemaps/js-api-loader';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '../firebase';
 import { performMapSearch, detectSearchType, getRestaurantReviews } from '../utils/mapSearchUtils';
-import { getMutualFollowReviewsByCategory, getAllMutualFollowReviews } from '../utils/mutualFollowReviews';
+import { 
+  getMutualFollowReviewsByCategory, 
+  getAllMutualFollowReviews,
+  getMutualFollowUsers,
+  getUserProfiles,
+  getAllUserReviews,
+  getUserReviewsByCategory
+} from '../utils/mutualFollowReviews';
 import { FOOD_CATEGORIES } from '../constants/categories';
 import {
   Box,
@@ -41,6 +48,8 @@ function GoogleMap() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
   const [showMyReviews, setShowMyReviews] = useState(false);
+  const [mutualUserOptions, setMutualUserOptions] = useState([]);
+  const [selectedMutualUserId, setSelectedMutualUserId] = useState('');
   const [selectedMarker, setSelectedMarker] = useState(null);
   
   // 新しい検索機能の状態
@@ -64,6 +73,17 @@ function GoogleMap() {
 
     try {
       let reviewsData = [];
+
+      // もしプルダウンで特定相互フォローユーザーが選択されていれば、そのユーザーのレビューのみ取得
+      if (selectedMutualUserId) {
+        if (categoryFilter) {
+          reviewsData = await getUserReviewsByCategory(selectedMutualUserId, categoryFilter);
+        } else {
+          reviewsData = await getAllUserReviews(selectedMutualUserId);
+        }
+        setReviews(reviewsData);
+        return;
+      }
 
       if (showMyReviews) {
         // 自分のレビューのみ表示
@@ -94,7 +114,7 @@ function GoogleMap() {
       console.error('レビュー取得エラー:', error);
       setReviews([]);
     }
-  }, [showMyReviews, categoryFilter, user]);
+  }, [showMyReviews, categoryFilter, user, selectedMutualUserId]);
 
   // 新しい検索機能
   const handleMapSearch = useCallback(async (searchText) => {
@@ -237,6 +257,28 @@ function GoogleMap() {
     // DOM要素が準備されるまで少し待つ
     setTimeout(initializeMap, 100);
   }, []);
+
+  // 相互フォローユーザー一覧（表示名付き）を取得してプルダウンにセット
+  useEffect(() => {
+    if (!user) {
+      setMutualUserOptions([]);
+      return;
+    }
+
+    let mounted = true;
+    (async () => {
+      try {
+        const ids = await getMutualFollowUsers(user.uid);
+        const profiles = await getUserProfiles(ids);
+        if (mounted) setMutualUserOptions(profiles || []);
+      } catch (error) {
+        console.error('相互フォローユーザー一覧取得エラー:', error);
+        if (mounted) setMutualUserOptions([]);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [user]);
 
   // レビューデータの初期取得
   useEffect(() => {
@@ -534,6 +576,33 @@ function GoogleMap() {
                     🏷️ {cat}
                   </MenuItem>
                 )) || []}
+              </Select>
+            </FormControl>
+
+            {/* 相互フォローからユーザーを選択 */}
+            <FormControl sx={{ minWidth: { xs: '100%', sm: 200 } }} size="small">
+              <Select
+                value={selectedMutualUserId}
+                onChange={(e) => setSelectedMutualUserId(e.target.value)}
+                displayEmpty
+                disabled={!user}
+                renderValue={(val) => {
+                  if (!val) return '👥 相互フォローを選択 (全表示)';
+                  const found = mutualUserOptions.find(u => u.id === val);
+                  return found ? `${found.displayName || found.id}` : val;
+                }}
+                sx={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.88)',
+                  borderRadius: 2,
+                  '& .MuiSelect-select': { py: 1, fontSize: { xs: '0.8rem', sm: '0.9rem' } }
+                }}
+              >
+                <MenuItem value="">👥 全ての相互フォロー</MenuItem>
+                {mutualUserOptions.map(u => (
+                  <MenuItem key={u.id} value={u.id} sx={{ fontSize: { xs: '0.8rem', sm: '0.9rem' } }}>
+                    {u.displayName || u.id}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 

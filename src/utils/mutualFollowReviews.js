@@ -91,7 +91,7 @@ export const getMutualFollowUsers = async (currentUserId) => {
  * @param {string} category - カテゴリー名
  * @returns {Promise<Array>} レビューの配列
  */
-const getUserReviewsByCategory = async (userId, category) => {
+export const getUserReviewsByCategory = async (userId, category) => {
   try {
     const reviewsRef = collection(db, 'users', userId, 'postRestaurantInfo');
     const reviewsQuery = query(reviewsRef, where('category', '==', category));
@@ -169,7 +169,7 @@ export const getAllMutualFollowReviews = async (currentUserId) => {
  * @param {string} userId - ユーザーID
  * @returns {Promise<Array>} レビューの配列
  */
-const getAllUserReviews = async (userId) => {
+export const getAllUserReviews = async (userId) => {
   try {
     const reviewsRef = collection(db, 'users', userId, 'postRestaurantInfo');
     const reviewsSnapshot = await getDocs(reviewsRef);
@@ -197,6 +197,37 @@ const getAllUserReviews = async (userId) => {
 
   } catch (error) {
     console.error(`ユーザー ${userId} のレビュー取得エラー:`, error);
+    return [];
+  }
+};
+
+/**
+ * ユーザーIDの配列からユーザープロファイル（displayName 等）を取得
+ * @param {Array<string>} userIds
+ * @returns {Promise<Array<{id: string, displayName?: string}>>}
+ */
+export const getUserProfiles = async (userIds = []) => {
+  try {
+    const profiles = [];
+    const { doc, getDoc } = await import('firebase/firestore');
+    for (const id of userIds) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', id));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          profiles.push({ id, displayName: data.displayName || '' });
+        } else {
+          profiles.push({ id, displayName: '' });
+        }
+      } catch (error) {
+        console.warn(`ユーザー ${id} のプロファイル取得に失敗:`, error);
+        profiles.push({ id, displayName: '' });
+      }
+    }
+
+    return profiles;
+  } catch (error) {
+    console.error('ユーザープロファイル取得エラー:', error);
     return [];
   }
 };

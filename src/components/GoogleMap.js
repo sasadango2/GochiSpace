@@ -609,7 +609,7 @@ function GoogleMap() {
             {/* 検索フィルター */}
             <Box sx={{ position: 'relative', flexGrow: 1 }}>
               <TextField
-                placeholder="🔍 店名・ユーザー名で検索（@でユーザー検索）"
+                placeholder="店名を入力し検索"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 size="small"

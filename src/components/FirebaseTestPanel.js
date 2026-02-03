@@ -253,7 +253,7 @@ function FirebaseTestPanel() {
                               投稿者: {review.userEmail}
                             </Typography>
                             <Typography variant="caption">
-                              {review.createdAt?.toDate?.()?.toLocaleString() || '日時不明'}
+                              {review.createdAt?.toDate?.()?.toLocaleString() || ''}
                             </Typography>
                           </Box>
                         }

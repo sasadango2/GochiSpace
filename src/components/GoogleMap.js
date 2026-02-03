@@ -504,7 +504,7 @@ function GoogleMap() {
     let reviewsHtml = '';
     sortedReviews.forEach((review, index) => {
       const userName = review.displayName || review.userEmail?.split('@')[0] || 'ユーザー';
-      const createDate = review.createdAt?.toDate?.()?.toLocaleDateString() || '日付不明';
+      const createDate = review.createdAt?.toDate?.()?.toLocaleDateString() || '';
       
       reviewsHtml += `
         <div style="border-bottom: 1px solid #eee; padding: 10px 0; ${index === sortedReviews.length - 1 ? 'border-bottom: none;' : ''}">
@@ -929,7 +929,7 @@ function GoogleMap() {
                           {review.displayName || review.userEmail || 'ユーザー'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {review.createdAt?.toDate?.()?.toLocaleDateString() || '日付不明'}
+                          {review.createdAt?.toDate?.()?.toLocaleDateString() || ''}
                         </Typography>
                       </Box>
                       

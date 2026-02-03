@@ -128,7 +128,7 @@ export const saveReviewData = async (userId, restaurantData, reviewData) => {
       category: reviewData.category,
       displayName: reviewData.displayName,
       userId: userId,
-      createdAt: "", // 空文字列として保存
+      createdAt: serverTimestamp(), // サーバータイムスタンプを保存
       
       // レストラン情報
       restaurantName: restaurantData.name,
@@ -156,13 +156,13 @@ export const saveReviewData = async (userId, restaurantData, reviewData) => {
         lat: lat,
         lng: lng
       },
-      createdAt: "", // 空文字列として保存
+      createdAt: serverTimestamp(), // サーバータイムスタンプを保存
       [`reviews.${userId}`]: {
         comment: reviewData.comment,
         rating: reviewData.rating,
         displayName: reviewData.displayName,
         userId: userId,
-        createdAt: "" // 空文字列として保存
+        createdAt: serverTimestamp() // サーバータイムスタンプを保存
       }
     };
     

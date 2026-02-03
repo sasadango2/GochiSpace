@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '../firebase';
-import { performMapSearch, detectSearchType, getRestaurantReviews } from '../utils/mapSearchUtils';
+import { getRestaurantReviews } from '../utils/mapSearchUtils';
+import { searchRestaurantsWithMutualReviews } from '../utils/restaurantSearch';
 import { 
   getMutualFollowReviewsByCategory, 
   getAllMutualFollowReviews,
@@ -116,50 +117,80 @@ function GoogleMap() {
     }
   }, [showMyReviews, categoryFilter, user, selectedMutualUserId]);
 
-  // 新しい検索機能
-  const handleMapSearch = useCallback(async (searchText) => {
-    if (!searchText.trim()) {
-      setSearchResults([]);
-      setSearchType('none');
-      setSearchMode(false);
-      return;
+  // 飲食店名検索（restaurantsコレクション活用版）
+  const handleRestaurantSearch = useCallback(async (searchText) => {
+    if (!searchText.trim() || !user) {
+      return [];
     }
 
-    if (!user) {
-      console.log('検索にはログインが必要です');
-      return;
-    }
-
-    setIsSearching(true);
-    setSearchMode(true);
-    
     try {
-      const type = detectSearchType(searchText);
-      setSearchType(type);
+      console.log(`🏪 restaurants検索実行: "${searchText}"`);
+      const results = await searchRestaurantsWithMutualReviews(
+        searchText, 
+        user.uid, 
+        { category: categoryFilter, limit: 100 }
+      );
       
-      const results = await performMapSearch(searchText, user.uid, {
-        category: categoryFilter,
-        limit: 100
+      // レビュー形式に変換してマーカー表示用に整形
+      const reviewsFromSearch = [];
+      results.forEach(restaurant => {
+        restaurant.reviews.forEach(review => {
+          reviewsFromSearch.push({
+            ...review,
+            restaurantName: restaurant.name,
+            restaurantAddress: restaurant.address,
+            restaurantLocation: restaurant.location
+          });
+        });
       });
       
-      setSearchResults(results);
-      console.log(`検索完了: ${results.length}件の結果`);
+      console.log(`✅ 検索結果レビュー数: ${reviewsFromSearch.length}件`);
+      return reviewsFromSearch;
     } catch (error) {
-      console.error('マップ検索エラー:', error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
+      console.error('飲食店検索エラー:', error);
+      return [];
     }
-  }, [categoryFilter, user]);
+  }, [user, categoryFilter]);
 
-  // 検索フィルターの変更を監視
+  // 検索フィルターの変更を監視（restaurantsコレクション活用版）
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      handleMapSearch(searchFilter);
+    const timeoutId = setTimeout(async () => {
+      if (!searchFilter.trim()) {
+        // 検索テキストが空の場合は通常のレビュー表示
+        setSearchMode(false);
+        setSearchResults([]);
+        return;
+      }
+
+      if (!user) return;
+
+      setIsSearching(true);
+      setSearchMode(true);
+
+      try {
+        // 飲食店名検索（restaurantsコレクション活用）
+        const results = await handleRestaurantSearch(searchFilter);
+        
+        if (results.length > 0) {
+          // レビューとして扱う
+          setReviews(results);
+          setSearchResults([]);
+        } else {
+          // 結果なし
+          setSearchResults([]);
+        }
+        
+        console.log(`🔍 高速検索完了: ${results.length}件`);
+      } catch (error) {
+        console.error('検索エラー:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
     }, 500); // 500ms のデバウンス
 
     return () => clearTimeout(timeoutId);
-  }, [searchFilter, handleMapSearch]);
+  }, [searchFilter, user, handleRestaurantSearch]);
 
   // 検索クリア
   const handleClearSearch = () => {

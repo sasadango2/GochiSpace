@@ -1,7 +1,7 @@
 /**
- * データベース同期ユーティリティ（クライアントサイド完全版）
+ * データベース同期ユーティリティ
  * postRestaurantInfoとrestaurantsコレクション間の自動同期を管理
- * Cloud Functions を使用せず、クライアントサイドで完全な自動同期を実現
+ * クライアントサイドで完全な自動同期を実現
  */
 
 import { 
@@ -19,11 +19,11 @@ import {
 import { db } from '../firebase.js';
 
 /**
- * 全体データ整合性チェック（クライアントサイド版）
+ * 全体データ整合性チェック
  */
 export const performDataIntegrityCheck = async () => {
   try {
-    console.log('🔍 データ整合性チェック開始 (クライアントサイド)...');
+    console.log('🔍 データ整合性チェック開始...');
     
     const restaurantsSnapshot = await getDocs(collection(db, 'restaurants'));
     let processedCount = 0;
@@ -73,11 +73,11 @@ export const performDataIntegrityCheck = async () => {
 };
 
 /**
- * 特定レストランの手動同期（クライアントサイド版）
+ * 特定レストランの手動同期
  */
 export const syncSpecificRestaurant = async (placeId) => {
   try {
-    console.log(`🔄 特定レストラン同期開始 (クライアントサイド): ${placeId}`);
+    console.log(`🔄 特定レストラン同期開始: ${placeId}`);
     
     await syncRestaurantData(placeId, null, null);
     
@@ -93,14 +93,14 @@ export const syncSpecificRestaurant = async (placeId) => {
 };
 
 /**
- * 投稿時の統合保存処理（クライアントサイド完全版）
+ * 投稿時の統合保存処理
  */
 export const saveReviewData = async (userId, restaurantData, reviewData) => {
   try {
     // Google Place IDを取得
     const placeId = restaurantData.placeId || restaurantData.place_id;
     
-    console.log('📝 統合レビュー保存開始 (クライアントサイド完全版):', {
+    console.log('📝 統合レビュー保存開始:', {
       userId,
       placeId: placeId
     });
@@ -171,7 +171,7 @@ export const saveReviewData = async (userId, restaurantData, reviewData) => {
     // 3. 自動同期処理を実行
     await syncRestaurantData(placeId, userId, reviewData);
 
-    console.log('✅ 統合レビュー保存完了 (クライアントサイド)');
+    console.log('✅ 統合レビュー保存完了');
 
     return {
       success: true,
@@ -179,17 +179,17 @@ export const saveReviewData = async (userId, restaurantData, reviewData) => {
       message: 'レビューが正常に保存され、自動同期されました'
     };
   } catch (error) {
-    console.error('❌ 統合レビュー保存エラー (クライアントサイド):', error);
+    console.error('❌ 統合レビュー保存エラー:', error);
     throw error;
   }
 };
 
 /**
- * レストランデータ同期処理（クライアントサイド版）
+ * レストランデータ同期処理
  */
 export const syncRestaurantData = async (placeId, userId = null, reviewData = null) => {
   try {
-    console.log(`🔄 レストランデータ同期開始 (クライアントサイド): ${placeId}`);
+    console.log(`🔄 レストランデータ同期開始: ${placeId}`);
 
     // 該当レストランの全レビューを収集
     const allReviews = await getAllReviewsForRestaurant(placeId);
@@ -198,7 +198,7 @@ export const syncRestaurantData = async (placeId, userId = null, reviewData = nu
       // レビューが存在しない場合、レストランドキュメントを削除
       const restaurantRef = doc(db, 'restaurants', placeId);
       await deleteDoc(restaurantRef);
-      console.log(`🗑️ レストラン削除完了 (レビューなし): ${placeId}`);
+      console.log(`🗑️ レストラン削除完了（レビューなし）: ${placeId}`);
       return {
         success: true,
         action: 'deleted',
@@ -216,7 +216,7 @@ export const syncRestaurantData = async (placeId, userId = null, reviewData = nu
       updatedAt: serverTimestamp()
     });
 
-    console.log(`✅ レストランデータ同期完了 (クライアントサイド): ${placeId}`, stats);
+    console.log(`✅ レストランデータ同期完了: ${placeId}`, stats);
 
     return {
       success: true,
@@ -226,17 +226,17 @@ export const syncRestaurantData = async (placeId, userId = null, reviewData = nu
       message: `レストラン ${placeId} の統計が更新されました`
     };
   } catch (error) {
-    console.error(`❌ レストランデータ同期エラー (クライアントサイド): ${placeId}`, error);
+    console.error(`❌ レストランデータ同期エラー: ${placeId}`, error);
     throw error;
   }
 };
 
 /**
- * レビュー削除時の同期処理（クライアントサイド版）
+ * レビュー削除時の同期処理
  */
 export const deleteReviewData = async (userId, placeId) => {
   try {
-    console.log('🗑️ レビュー削除同期開始 (クライアントサイド):', {
+    console.log('🗑️ レビュー削除同期開始:', {
       userId,
       placeId
     });
@@ -254,7 +254,7 @@ export const deleteReviewData = async (userId, placeId) => {
     // 3. レストランデータを自動同期
     await syncRestaurantData(placeId, userId, null);
 
-    console.log('✅ レビュー削除同期完了 (クライアントサイド)');
+    console.log('✅ レビュー削除同期完了');
 
     return {
       success: true,
@@ -262,17 +262,17 @@ export const deleteReviewData = async (userId, placeId) => {
       message: 'レビューが削除され、レストランデータが自動同期されました'
     };
   } catch (error) {
-    console.error('❌ レビュー削除同期エラー (クライアントサイド):', error);
+    console.error('❌ レビュー削除同期エラー:', error);
     throw error;
   }
 };
 
 /**
- * ユーザープロフィール更新（クライアントサイド版）
+ * ユーザープロフィール更新
  */
 export const updateUserProfile = async (userId, profileData) => {
   try {
-    console.log('👤 ユーザープロフィール更新開始 (クライアントサイド):', userId);
+    console.log('👤 ユーザープロフィール更新開始:', userId);
 
     // 1. プロフィールを更新
     const userRef = doc(db, 'users', userId);
@@ -286,7 +286,7 @@ export const updateUserProfile = async (userId, profileData) => {
       await updateDisplayNameInReviews(userId, profileData.displayName);
     }
 
-    console.log('✅ ユーザープロフィール更新完了 (クライアントサイド)');
+    console.log('✅ ユーザープロフィール更新完了');
 
     return {
       success: true,
@@ -295,7 +295,7 @@ export const updateUserProfile = async (userId, profileData) => {
       message: 'プロフィールが更新され、関連データが自動同期されました'
     };
   } catch (error) {
-    console.error('❌ ユーザープロフィール更新エラー (クライアントサイド):', error);
+    console.error('❌ ユーザープロフィール更新エラー:', error);
     throw error;
   }
 };

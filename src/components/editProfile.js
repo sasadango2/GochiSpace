@@ -97,11 +97,11 @@ function EditProfile() {
     }
 
     try {
-      // Cloud Functions による自動同期なので詳細な事前チェックは不要
+      // 自動同期が実行されるため、事前チェックは不要
       setUpdateImpact({ 
         reviewsToUpdate: "自動計算", 
         restaurantsToUpdate: "自動更新",
-        message: "Cloud Functions により関連データが自動同期されます",
+        message: "関連データが自動同期されます",
         details: {
           userProfile: "自動計算",
           restaurantReviews: "自動計算", 
@@ -138,9 +138,9 @@ function EditProfile() {
     setMessage("");
 
     try {
-      // displayNameが変更された場合はCloud Functions による自動同期を使用
+      // displayNameが変更された場合は自動同期を実行
       if (username.trim() !== originalDisplayName) {
-        console.log("displayName変更検出 - Cloud Functions による自動同期を開始");
+        console.log("displayName変更検出 - 自動同期を開始");
         await updateUserProfile(user.uid, { displayName: username.trim() });
         console.log("displayName更新完了 - 関連レビューは自動同期されます");
       }
@@ -173,7 +173,7 @@ function EditProfile() {
         userData.firebaseUid = existingData.firebaseUid || user.uid;
       }
 
-      // Cloud Functions 対応のプロフィール更新処理
+      // プロフィール更新処理
       const profileData = {
         displayName: username.trim(),
         email: user.email,
@@ -187,7 +187,7 @@ function EditProfile() {
       
       if (result.success) {
         if (username.trim() !== originalDisplayName) {
-          setMessage(`プロフィールが保存されました！displayNameを「${username.trim()}」に更新し、関連データもCloud Functionsで自動同期されます。`);
+          setMessage(`プロフィールが保存されました！displayNameを「${username.trim()}」に更新し、関連データも自動同期されます。`);
         } else {
           setMessage("プロフィールが保存されました！");
         }
